@@ -25,6 +25,11 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
 class EventCreate(BaseModel):
     source: str = "unknown"
     event_type: str = "generic"
