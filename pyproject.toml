@@ -1,0 +1,31 @@
+[project]
+name = "neurosoc"
+version = "0.1.0"
+description = "AI-assisted SOC and SIEM platform"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "sqlalchemy",
+  "pydantic",
+  "pydantic-settings",
+  "httpx",
+  "jinja2",
+  "typer",
+  "rich",
+  "pyyaml",
+  "bcrypt",
+  "PyJWT",
+  "python-multipart",
+  "orjson",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.black]
+line-length = 100
