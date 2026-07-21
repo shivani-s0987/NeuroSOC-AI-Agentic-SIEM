@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine
 from app.models import Event
-from app.services.detection_service import load_rules, run_detections
+from app.services.detection_service import load_rules
 from app.services.ingest_service import ingest_file
 from app.services.report_service import create_report
 

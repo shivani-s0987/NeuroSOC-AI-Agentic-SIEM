@@ -30,6 +30,6 @@ def build_timeline(db: Session, host: str | None = None) -> list[dict[str, Any]]
 def correlate_events(db: Session) -> dict[str, list[Event]]:
     groups: dict[str, list[Event]] = defaultdict(list)
     for event in db.query(Event).all():
-        key = event.host or event.user or event.src_ip or "unknown"
+        key = str(event.host or event.user or event.src_ip or "unknown")
         groups[key].append(event)
     return dict(groups)

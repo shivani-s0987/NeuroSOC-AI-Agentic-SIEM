@@ -8,8 +8,7 @@ from app.models import Detection, Event, Rule
 
 def load_rules(db: Session) -> list[Rule]:
     rules: list[Rule] = []
-    sample = yaml.safe_load(
-        """
+    sample = yaml.safe_load("""
 name: Failed Login Spike
 id: failed-login-spike
 description: Detects repeated failed authentication attempts.
@@ -17,8 +16,7 @@ severity: high
 mitre:
   - technique_id: T1110
     name: Brute Force
-"""
-    )
+""")
     rule = Rule(name=sample["name"], rule_id=sample["id"], content="failed-login-spike", enabled=1)
     db.add(rule)
     db.commit()

@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Any, Callable
 
-import bcrypt
 import jwt
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -13,11 +12,11 @@ from app.models import User
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+    return hash_password(password) == hashed
 
 
 def create_token(subject: str, role: str) -> str:
@@ -48,5 +47,7 @@ def require_role(*allowed_roles: str) -> Callable[[Callable[..., Any]], Callable
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator

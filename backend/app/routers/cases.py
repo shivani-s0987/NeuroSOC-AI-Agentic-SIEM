@@ -20,6 +20,8 @@ def create(payload: CaseCreate, db: Session = Depends(get_db)) -> Case:
 
 
 @router.post("/{case_id}/notes")
-def add_case_note(case_id: int, author: str, content: str, db: Session = Depends(get_db)) -> dict[str, str]:
+def add_case_note(
+    case_id: int, author: str, content: str, db: Session = Depends(get_db)
+) -> dict[str, str]:
     note = add_note(db, case_id, author, content)
-    return {"id": str(note.id), "content": note.content}
+    return {"id": str(note.id), "content": str(note.content)}

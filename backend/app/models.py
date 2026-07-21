@@ -8,6 +8,7 @@ from app.database import Base
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(80), unique=True, index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
@@ -18,6 +19,7 @@ class User(Base):
 
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     source = Column(String(120), default="unknown")
     event_type = Column(String(120), default="generic")
@@ -30,11 +32,12 @@ class Event(Base):
     message = Column(Text, nullable=False)
     raw = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    metadata = Column(JSON, default=dict)
+    payload_metadata = Column(JSON, default=dict)
 
 
 class Alert(Base):
     __tablename__ = "alerts"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     severity = Column(String(50), default="medium")
@@ -43,11 +46,12 @@ class Alert(Base):
     summary = Column(Text, nullable=True)
     event_ids = Column(JSON, default=list)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    metadata = Column(JSON, default=dict)
+    alert_metadata = Column(JSON, default=dict)
 
 
 class Detection(Base):
     __tablename__ = "detections"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     severity = Column(String(50), default="medium")
@@ -60,6 +64,7 @@ class Detection(Base):
 
 class Rule(Base):
     __tablename__ = "rules"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     rule_id = Column(String(120), unique=True, nullable=False)
@@ -70,6 +75,7 @@ class Rule(Base):
 
 class Case(Base):
     __tablename__ = "cases"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     status = Column(String(50), default="open")
@@ -83,6 +89,7 @@ class Case(Base):
 
 class CaseNote(Base):
     __tablename__ = "case_notes"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
     author = Column(String(120), nullable=False)
@@ -93,6 +100,7 @@ class CaseNote(Base):
 
 class ThreatIntel(Base):
     __tablename__ = "threat_intel"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     indicator = Column(String(255), nullable=False, index=True)
     intel_type = Column(String(80), default="ip")
@@ -103,6 +111,7 @@ class ThreatIntel(Base):
 
 class MITRETechnique(Base):
     __tablename__ = "mitre_techniques"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     technique_id = Column(String(80), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
@@ -112,6 +121,7 @@ class MITRETechnique(Base):
 
 class Report(Base):
     __tablename__ = "reports"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     report_type = Column(String(80), default="investigation")
@@ -122,6 +132,7 @@ class Report(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     actor = Column(String(120), nullable=False)
     action = Column(String(200), nullable=False)
@@ -131,6 +142,7 @@ class AuditLog(Base):
 
 class Configuration(Base):
     __tablename__ = "configurations"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     key = Column(String(120), unique=True, nullable=False)
     value = Column(Text, nullable=False)
@@ -139,6 +151,7 @@ class Configuration(Base):
 
 class SavedSearch(Base):
     __tablename__ = "saved_searches"
+    __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     query = Column(Text, nullable=False)

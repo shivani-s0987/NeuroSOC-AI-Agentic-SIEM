@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 from app.models import Case, CaseNote
 
 
-def create_case(db: Session, title: str, priority: str, assigned_to: str | None, summary: str | None) -> Case:
+def create_case(
+    db: Session, title: str, priority: str, assigned_to: str | None, summary: str | None
+) -> Case:
     case = Case(title=title, priority=priority, assigned_to=assigned_to, summary=summary)
     db.add(case)
     db.commit()

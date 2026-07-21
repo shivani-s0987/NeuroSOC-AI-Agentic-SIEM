@@ -11,7 +11,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserOut)
 def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
-    if db.query(User).filter((User.username == payload.username) | (User.email == payload.email)).first():
+    if (
+        db.query(User)
+        .filter((User.username == payload.username) | (User.email == payload.email))
+        .first()
+    ):
         raise HTTPException(status_code=400, detail="User already exists")
     user = User(
         username=payload.username,
@@ -28,9 +32,14 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
 @router.post("/login", response_model=Token)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> Token:
     user = db.query(User).filter(User.username == payload.username).first()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_token(user.username, user.role)
+    password_hash = user.password_hash
+    if not verify_password(payload.password, str(password_hash)):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    username = str(user.username)
+    role = str(user.role)
+    token = create_token(username, role)
     return Token(access_token=token)
 
 

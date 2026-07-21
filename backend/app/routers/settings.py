@@ -7,19 +7,21 @@ from app.models import Configuration
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-@router.get("")
-def list_settings(db: Session = Depends(get_db)) -> list[Configuration]:
-    return db.query(Configuration).all()
+@router.get("", response_model=None)
+def list_settings(db: Session = Depends(get_db)) -> list[dict[str, object]]:
+    return [
+        {"key": str(item.key), "value": str(item.value)} for item in db.query(Configuration).all()
+    ]
 
 
-@router.post("")
-def set_setting(key: str, value: str, db: Session = Depends(get_db)) -> Configuration:
+@router.post("", response_model=None)
+def set_setting(key: str, value: str, db: Session = Depends(get_db)) -> dict[str, object]:
     config = db.query(Configuration).filter(Configuration.key == key).first()
     if config is None:
         config = Configuration(key=key, value=value)
         db.add(config)
     else:
-        config.value = value
+        setattr(config, "value", value)
     db.commit()
     db.refresh(config)
-    return config
+    return {"key": str(config.key), "value": str(config.value)}
