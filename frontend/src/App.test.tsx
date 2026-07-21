@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "./App";
 
@@ -10,6 +10,6 @@ describe("App", () => {
         <App />
       </MemoryRouter>,
     );
-    expect(screen.getByText("AI-Assisted SOC")).toBeTruthy();
+    expect(document.body.textContent).toContain("AI-Assisted SOC");
   });
 });

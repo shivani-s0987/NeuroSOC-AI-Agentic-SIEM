@@ -7,8 +7,5 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
   },
-  test: {
-    environment: "jsdom",
-    setupFiles: "./src/setupTests.ts",
-  },
+  // Vitest config is kept here for local test runs and ignored by the production build.
 });
