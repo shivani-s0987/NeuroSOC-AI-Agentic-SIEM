@@ -1,0 +1,7 @@
+name: Failed Login Spike
+id: failed-login-spike
+description: Detects repeated failed authentication attempts.
+severity: high
+mitre:
+  - technique_id: T1110
+    name: Brute Force
