@@ -1,14 +1,17 @@
 from datetime import datetime, timezone
 from typing import Any, Generic, List, Optional, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
-class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
-    role: str = "Viewer"
+class PasswordPolicy(BaseModel):
+    password: str = Field(min_length=12, max_length=128)
+
+
+class UserCreate(PasswordPolicy):
+    username: str = Field(min_length=3, max_length=80, pattern="^[A-Za-z0-9_.-]+$")
+    email: EmailStr
+    role: str = Field(default="SECURITY_VIEWER", exclude=True)
 
 
 class UserOut(BaseModel):
@@ -17,6 +20,7 @@ class UserOut(BaseModel):
     username: str
     email: str
     role: str
+    disabled: int = 0
     created_at: datetime
 
 
@@ -28,7 +32,19 @@ class Token(BaseModel):
 
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=80)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=4096)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(PasswordPolicy):
+    token: str = Field(min_length=20, max_length=4096)
 
 
 class EventCreate(BaseModel):

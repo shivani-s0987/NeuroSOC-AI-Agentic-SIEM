@@ -9,6 +9,7 @@ from app.core.logging import configure_logging, log_request
 from app.routers.alerts import router as alerts_router
 from app.routers.analytics import router as analytics_router
 from app.routers.assistant import router as assistant_router
+from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
 from app.routers.cases import router as cases_router
 from app.routers.detections import router as detections_router
@@ -52,10 +53,11 @@ app.include_router(reports_router)
 app.include_router(analytics_router)
 app.include_router(settings_router)
 app.include_router(assistant_router)
+app.include_router(admin_router)
 
 for router in (
     auth_router, events_router, alerts_router, detections_router, search_router,
-    cases_router, reports_router, analytics_router, settings_router, assistant_router,
+    cases_router, reports_router, analytics_router, settings_router, assistant_router, admin_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

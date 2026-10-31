@@ -7,6 +7,8 @@ from app.database import get_db
 from app.models import Alert
 from app.schemas import AlertOut, Paginated
 from app.core.pagination import apply_sort, paginated, pagination_params
+from app.core.permissions import Permission
+from app.security import require_permission
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -31,7 +33,7 @@ def list_alerts(db: Session = Depends(get_db), paging: dict = Depends(pagination
 
 
 @router.post("", response_model=AlertOut)
-def create_alert(title: str, severity: str = "medium", db: Session = Depends(get_db)) -> Alert:
+def create_alert(title: str, severity: str = "medium", db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.ALERTS_MANAGE))) -> Alert:
     alert = Alert(title=title, severity=severity, summary="AI-assisted alert explanation generated")
     db.add(alert)
     db.commit()

@@ -13,6 +13,8 @@ from app.database import get_db
 from app.models import Event
 from app.schemas import EventCreate, EventOut, Paginated
 from app.core.pagination import apply_sort, paginated, pagination_params
+from app.core.permissions import Permission
+from app.security import require_permission
 from app.services.ingest_service import ingest_file_report
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -21,6 +23,7 @@ router = APIRouter(prefix="/events", tags=["events"])
 @router.get("", response_model=Paginated[EventOut])
 def list_events(
     db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.EVENTS_READ)),
     paging: dict = Depends(pagination_params),
     host: str | None = Query(default=None, max_length=120),
     user: str | None = Query(default=None, max_length=120),
@@ -56,7 +59,7 @@ def list_events(
 
 
 @router.post("", response_model=EventOut)
-def create_event(payload: EventCreate, db: Session = Depends(get_db)) -> Event:
+def create_event(payload: EventCreate, db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_WRITE))) -> Event:
     data = payload.model_dump(exclude={"metadata"})
     data["payload_metadata"] = payload.metadata or {}
     event = Event(**data)

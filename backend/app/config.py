@@ -12,8 +12,12 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-secret-change-me"
     jwt_refresh_secret: str = "dev-refresh-secret-change-me"
     jwt_algorithm: str = "HS256"
+    jwt_issuer: str | None = None
+    jwt_audience: str | None = None
     jwt_expiry_minutes: int = Field(default=60, ge=1, le=1440)
     refresh_expiry_days: int = Field(default=7, ge=1, le=365)
+    password_reset_expiry_minutes: int = Field(default=30, ge=5, le=1440)
+    auth_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
     ai_provider: Literal["mock", "openai"] = "mock"
     upload_dir: Path = Path("./uploads")
     upload_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)

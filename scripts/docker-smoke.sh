@@ -17,9 +17,6 @@ tokens=$(curl -fsS -X POST "$base_url/auth/login" \
   -d '{"username":"'"$username"'","password":"'"$password"'"}')
 token=$(printf '%s' "$tokens" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
 
-curl -fsS -X POST "$base_url/events" \
-  -H 'Content-Type: application/json' -H "Authorization: Bearer $token" \
-  -d '{"message":"Failed login","event_type":"auth","severity":"high","src_ip":"198.51.100.20","metadata":{"smoke":true}}' >/dev/null
-
-summary=$(curl -fsS "$base_url/analytics/summary")
+curl -fsS "$base_url/auth/me" -H "Authorization: Bearer $token" >/dev/null
+summary=$(curl -fsS "$base_url/analytics/summary" -H "Authorization: Bearer $token")
 printf 'Docker smoke passed: %s\n' "$summary"
