@@ -1,0 +1,20 @@
+id: suspicious_powershell
+name: Suspicious PowerShell Detection
+description: Encoded PowerShell combined with hidden execution indicators.
+enabled: true
+severity: high
+category: endpoint
+tags: [powershell, encoded-command]
+logsource: {product: windows, service: process}
+detection:
+  selection:
+    and:
+      - process_name: {operator: ends_with, value: powershell.exe}
+      - command_line: {operator: regex, value: "(?i)(-enc|-encodedcommand|-windowstyle hidden|-w hidden|downloadstring\\(|invoke-expression)"}
+  condition: selection
+  timeframe: 15m
+  count: 1
+  group_by: [host, username]
+mitre: {tactics: [TA0002], techniques: [T1059.001]}
+response: {create_alert: true, recommended_action: Review the command line, parent process, and decoded intent before response.}
+version: 1

@@ -1,0 +1,18 @@
+id: suspicious_file_indicator
+name: Suspicious File Indicator Detection
+description: Match a telemetry-provided malware hash or suspicious executable indicator.
+enabled: true
+severity: critical
+category: endpoint
+tags: [malware-indicator, file]
+logsource: {category: file}
+detection:
+  selection:
+    suspicious_indicator: {operator: equals, value: true}
+  condition: selection
+  timeframe: 1h
+  count: 1
+  group_by: [host]
+mitre: {tactics: [TA0002], techniques: [T1204.002]}
+response: {create_alert: true, recommended_action: Validate the indicator against trusted sources and preserve endpoint evidence.}
+version: 1

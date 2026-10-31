@@ -48,6 +48,9 @@ class Alert(Base):
     event_ids = Column(JSON, default=list)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     alert_metadata = Column(JSON, default=dict)
+    fingerprint = Column(String(255), nullable=True, index=True)
+    first_observed_at = Column(DateTime, nullable=True)
+    last_observed_at = Column(DateTime, nullable=True)
 
 
 class Detection(Base):
@@ -60,6 +63,10 @@ class Detection(Base):
     description = Column(Text, nullable=True)
     mitre = Column(JSON, default=list)
     enabled = Column(Integer, default=1)
+    fingerprint = Column(String(255), unique=True, nullable=True, index=True)
+    event_ids = Column(JSON, default=list)
+    first_observed_at = Column(DateTime, nullable=True)
+    last_observed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
@@ -70,7 +77,20 @@ class Rule(Base):
     name = Column(String(200), nullable=False)
     rule_id = Column(String(120), unique=True, nullable=False)
     content = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    severity = Column(String(50), nullable=True)
+    version = Column(Integer, default=1, nullable=False)
     enabled = Column(Integer, default=1)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class RuleVersion(Base):
+    __tablename__ = "rule_versions"
+    __table_args__ = {"extend_existing": True}
+    id = Column(Integer, primary_key=True, index=True)
+    rule_id = Column(String(120), ForeignKey("rules.rule_id", ondelete="CASCADE"), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 

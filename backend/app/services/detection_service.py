@@ -1,77 +1,67 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.models import Detection, Event, Rule
+from app.detection_engine import correlate, load_yaml, parse_duration
+from app.models import Alert, Detection, Event, Rule
 
-RULES = {
-    "failed-login-spike": ("Failed Login Spike", 5, 10, "high", "T1110.001", "Password Guessing"),
-    "ssh-brute-force": ("SSH Brute Force", 10, 10, "critical", "T1110.001", "Password Guessing"),
-    "repeated-access-denied": ("Repeated Access Denied", 5, 15, "medium", "T1078", "Valid Accounts"),
-}
+RULE_DIRECTORY = Path(__file__).resolve().parent.parent / "detection_rules"
 
 
 def load_rules(db: Session) -> list[Rule]:
     loaded: list[Rule] = []
-    for rule_id, (name, threshold, window, severity, technique, technique_name) in RULES.items():
-        rule = db.query(Rule).filter(Rule.rule_id == rule_id).first()
-        if rule is None:
-            rule = Rule(rule_id=rule_id, name=name, content=f"threshold={threshold};window_minutes={window}", enabled=1)
-            db.add(rule)
-        loaded.append(rule)
+    for path in sorted(RULE_DIRECTORY.glob("*.yml")):
+        try:
+            parsed = load_yaml(path)
+            rule = db.query(Rule).filter(Rule.rule_id == parsed.id).first()
+            if rule is None:
+                rule = Rule(rule_id=parsed.id, name=parsed.name, description=parsed.description,
+                            content=path.read_text(encoding="utf-8"), severity=parsed.severity,
+                            version=parsed.version, enabled=int(parsed.enabled))
+                db.add(rule)
+            loaded.append(rule)
+        except Exception as exc:
+            logging.getLogger("neurosoc.detection").error("invalid rule path=%s error=%s", path.name, exc)
     db.commit()
     return loaded
 
 
-def _timestamp(value: datetime | None) -> datetime:
-    timestamp = value or datetime.now(timezone.utc)
-    return timestamp.replace(tzinfo=timezone.utc) if timestamp.tzinfo is None else timestamp.astimezone(timezone.utc)
-
-
-def _group(events: list[Event], field: str) -> dict[str, list[Event]]:
-    grouped: dict[str, list[Event]] = defaultdict(list)
-    for event in events:
-        value = getattr(event, field, None) or "unknown"
-        grouped[str(value)].append(event)
-    return grouped
-
-
-def run_detections(db: Session) -> list[Detection]:
+def run_detections(db: Session, as_of: datetime | None = None) -> list[Detection]:
     load_rules(db)
-    now = datetime.now(timezone.utc)
-    events = db.query(Event).all()
     detections: list[Detection] = []
-
-    for rule_id, (name, threshold, window_minutes, severity, technique, technique_name) in RULES.items():
-        window = now - timedelta(minutes=window_minutes)
-        eligible = [event for event in events if _timestamp(event.timestamp) >= window]
-        if rule_id == "failed-login-spike":
-            eligible = [e for e in eligible if "failed" in e.message.lower() and str(e.event_type).lower() in {"auth", "authentication", "login"}]
-        elif rule_id == "ssh-brute-force":
-            eligible = [e for e in eligible if "ssh" in str(e.event_type).lower() and "failed" in e.message.lower()]
-        else:
-            eligible = [e for e in eligible if "access denied" in e.message.lower() or "permission denied" in e.message.lower()]
-
-        for group_field in ("src_ip", "host", "user"):
-            for identity, group in _group(eligible, group_field).items():
-                if len(group) < threshold:
-                    continue
-                fingerprint = f"{rule_id}:{group_field}:{identity}:{window_minutes}"
-                existing = db.query(Detection).filter(Detection.rule_id == rule_id, Detection.description.contains(fingerprint)).first()
+    for path in sorted(RULE_DIRECTORY.glob("*.yml")):
+        try:
+            rule = load_yaml(path)
+            if not rule.enabled:
+                continue
+            timeframe = parse_duration(rule.detection["timeframe"])
+            cutoff = (as_of or datetime.now(timezone.utc)) - timeframe
+            events = db.query(Event).filter(Event.timestamp >= cutoff).order_by(Event.timestamp.asc()).all()
+            for match in correlate(rule, events, as_of=as_of):
+                existing = db.query(Detection).filter(Detection.fingerprint == match.fingerprint).first()
+                timestamps = [event.timestamp for event in events if event.id in match.event_ids]
                 if existing:
+                    existing.event_ids = sorted(set(existing.event_ids or []) | list(match.event_ids))
+                    existing.last_observed_at = max(timestamps) if timestamps else existing.last_observed_at
                     continue
-                detection = Detection(
-                    name=name,
-                    severity=severity,
-                    rule_id=rule_id,
-                    description=f"{fingerprint} count={len(group)}",
-                    mitre=[{"technique_id": technique, "name": technique_name}],
-                    enabled=True,
-                )
+                detection = Detection(name=rule.name, severity=rule.severity, rule_id=rule.id,
+                                      description=rule.description, mitre=[{"technique_id": value, "name": "ATT&CK mapping"} for value in rule.mitre.techniques],
+                                      enabled=True, fingerprint=match.fingerprint, event_ids=list(match.event_ids),
+                                      first_observed_at=match.first_observed, last_observed_at=match.last_observed)
+                alert = db.query(Alert).filter(Alert.fingerprint == match.fingerprint).first()
+                if alert is None:
+                    db.add(Alert(title=rule.name, severity=rule.severity, source="detection",
+                                 summary=f"{rule.description} Recommended action: {rule.response.recommended_action}",
+                                 event_ids=list(match.event_ids), first_observed_at=match.first_observed,
+                                 last_observed_at=match.last_observed, fingerprint=match.fingerprint,
+                                 status="open", alert_metadata={"grouping": match.context, "mitre": rule.mitre.model_dump()}))
                 db.add(detection)
                 detections.append(detection)
+        except Exception as exc:
+            logging.getLogger("neurosoc.detection").error("rule=%s execution_failed=%s", path.stem, exc)
     db.commit()
     return detections
