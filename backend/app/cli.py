@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import shutil
+import sqlite3
+from pathlib import Path
+
 import typer
 from sqlalchemy.orm import Session
 
@@ -52,17 +56,37 @@ def report(title: str = "Investigation Report") -> None:
 
 @app.command()
 def doctor() -> None:
-    typer.echo("All systems healthy")
+    Base.metadata.create_all(bind=engine)
+    with engine.connect():
+        typer.echo("Database connection: healthy")
+    typer.echo("Configuration: loaded")
 
 
 @app.command()
-def backup() -> None:
-    typer.echo("Backup created")
+def backup(output: str = "neurosoc-backup.db") -> None:
+    from app.config import settings
+    if not settings.database_url.startswith("sqlite"):
+        raise typer.BadParameter("CLI backup currently supports SQLite; use pg_dump for PostgreSQL")
+    source = settings.database_url.removeprefix("sqlite:///")
+    source_path = Path(source)
+    if not source_path.exists():
+        raise typer.BadParameter(f"Database does not exist: {source_path}")
+    shutil.copy2(source_path, output)
+    typer.echo(f"Backup created: {output}")
 
 
 @app.command()
-def restore() -> None:
-    typer.echo("Restore completed")
+def restore(source: str) -> None:
+    from app.config import settings
+    if not settings.database_url.startswith("sqlite"):
+        raise typer.BadParameter("CLI restore currently supports SQLite; use pg_restore for PostgreSQL")
+    source_path = Path(source)
+    if not source_path.is_file():
+        raise typer.BadParameter(f"Backup does not exist: {source_path}")
+    destination = Path(settings.database_url.removeprefix("sqlite:///"))
+    with sqlite3.connect(source_path) as backup, sqlite3.connect(destination) as database:
+        backup.backup(database)
+    typer.echo(f"Restored: {source}")
 
 
 @app.command()

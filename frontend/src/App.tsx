@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, Route, Routes } from "react-router-dom";
 import { Bar, Doughnut, Line } from "react-chartjs-2";
 import {
@@ -11,6 +12,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import { api, AlertRecord, CaseRecord, DetectionRecord, EventRecord, Summary } from "./api";
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
 
@@ -30,56 +32,63 @@ const menu = [
 ];
 
 const overviewStats = [
-  { label: "Events", value: "12.4K" },
-  { label: "Alerts", value: "284" },
-  { label: "Cases", value: "17" },
-  { label: "MITRE", value: "43" },
-];
+  { label: "Events", key: "events" },
+  { label: "Alerts", key: "alerts" },
+  { label: "Cases", key: "cases" },
+  { label: "MITRE", key: "mitre" },
+] as const;
 
 function HomePage() {
+  const [summary, setSummary] = useState<Summary>();
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get<Summary>("/analytics/summary").then(({ data }) => setSummary(data)).catch(() => setError("Unable to load dashboard data."));
+  }, []);
+
+  if (error) return <p role="alert" className="text-red-400">{error}</p>;
+  if (!summary) return <p className="text-slate-400">Loading dashboard...</p>;
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
         {overviewStats.map((stat) => (
           <div key={stat.label} className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
             <p className="text-sm text-slate-400">{stat.label}</p>
-            <p className="mt-2 text-3xl font-semibold text-white">{stat.value}</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{summary[stat.key]}</p>
           </div>
         ))}
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
-          <h2 className="text-lg font-semibold">Events over time</h2>
-          <Line
-            data={{
-              labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-              datasets: [
-                {
-                  label: "Events",
-                  data: [120, 190, 240, 180, 260, 300, 220],
-                  borderColor: "#38bdf8",
-                  backgroundColor: "rgba(56,189,248,0.2)",
-                },
-              ],
-            }}
-          />
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
-          <h2 className="text-lg font-semibold">Alert severity</h2>
-          <Doughnut
-            data={{
-              labels: ["Critical", "High", "Medium", "Low"],
-              datasets: [
-                {
-                  data: [12, 48, 90, 25],
-                  backgroundColor: ["#ef4444", "#f59e0b", "#3b82f6", "#10b981"],
-                },
-              ],
-            }}
-          />
-        </div>
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
+        <h2 className="text-lg font-semibold">Operational totals</h2>
+        <p className="mt-2 text-slate-400">{summary.alerts} alerts, including {summary.high_severity} high-severity alerts, and {summary.detections} detections.</p>
       </div>
     </div>
+  );
+}
+
+function ResourcePage({ title, endpoint }: { title: string; endpoint: string }) {
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get<Record<string, unknown>[] | { items: Record<string, unknown>[] }>(endpoint).then(({ data }) => setRows(Array.isArray(data) ? data : data.items)).catch(() => setError(`Unable to load ${title.toLowerCase()}.`));
+  }, [endpoint, title]);
+
+  return (
+    <section>
+      <h1 className="mb-4 text-2xl font-semibold">{title}</h1>
+      {error && <p role="alert" className="text-red-400">{error}</p>}
+      {!error && rows.length === 0 && <p className="text-slate-400">No records or data is loading.</p>}
+      <div className="space-y-3">
+        {rows.map((row, index) => (
+          <article key={String(row.id ?? index)} className="rounded-lg border border-slate-800 bg-slate-900/80 p-4">
+            <p className="font-medium">{String(row.name ?? row.title ?? row.message ?? `Record ${index + 1}`)}</p>
+            <p className="mt-1 text-sm text-slate-400">{String(row.severity ?? row.status ?? row.event_type ?? row.priority ?? row.source ?? "")}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -112,11 +121,11 @@ export default function App() {
         <main className="flex-1 p-6">
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/events" element={<PlaceholderPage title="Events" />} />
-            <Route path="/alerts" element={<PlaceholderPage title="Alerts" />} />
-            <Route path="/detections" element={<PlaceholderPage title="Detections" />} />
+            <Route path="/events" element={<ResourcePage title="Events" endpoint="/events" />} />
+            <Route path="/alerts" element={<ResourcePage title="Alerts" endpoint="/alerts" />} />
+            <Route path="/detections" element={<ResourcePage title="Detections" endpoint="/detections" />} />
             <Route path="/intel" element={<PlaceholderPage title="Threat Intelligence" />} />
-            <Route path="/cases" element={<PlaceholderPage title="Cases" />} />
+            <Route path="/cases" element={<ResourcePage title="Cases" endpoint="/cases" />} />
             <Route path="/search" element={<PlaceholderPage title="Search" />} />
             <Route path="/rules" element={<PlaceholderPage title="Rules" />} />
             <Route path="/users" element={<PlaceholderPage title="Users" />} />

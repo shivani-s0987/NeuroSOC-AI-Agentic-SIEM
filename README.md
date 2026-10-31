@@ -29,18 +29,25 @@ Designed for **defensive security, threat hunting, security research, and SOC tr
 
 ---
 
-## ✨ Key Features
+## Implemented in this revision
 
-- 🛡️ Multi-source Security Log Ingestion
-- 📊 Real-time SIEM Dashboard
-- 🔍 Full-Text Log Search & Filtering
-- 🚨 Detection Rule Engine & Alert Correlation
-- 🤖 AI-Assisted Incident Investigation
-- 🎯 MITRE ATT&CK Mapping
-- 📁 Security Case Management
-- 📈 Interactive Security Analytics
-- 🔐 JWT Authentication & Role-Based Access
-- ⚡ FastAPI + React + SQLite Architecture
+- Argon2id password hashing with legacy SHA-256 verification and rehashing on login
+- Short-lived access JWTs and separate refresh JWTs
+- SQLite and PostgreSQL configuration, plus Bearer-token authentication
+- Bounded JSONL/log/CSV uploads and normalized UTC timestamps
+- Threshold-based failed-login, SSH brute-force, and repeated denied-access detections
+- Rule and detection deduplication
+- API-backed React overview, event, alert, detection, and case views
+- Functional SQLite CLI doctor/backup/restore commands
+- Docker Compose for frontend, API, and PostgreSQL
+
+## Current limitations
+
+- The remaining frontend menu routes are shells until their backend contracts are completed.
+- Alembic migrations exist for the current schema, but production rollout and multi-version migration history require operational review.
+- Redis, WebSockets, playbook automation, and autonomous response are not implemented.
+- The AI endpoint is a provider boundary with deterministic fallback, not an autonomous provider guarantee.
+- Real-time ingestion and a complete browser login flow require additional integration.
 
 ---
 
@@ -83,10 +90,15 @@ Security Logs
 ### Backend
 
 ```bash
-pip install -r backend/requirements.txt
-
+cp .env.example .env
+python -m pip install -r backend/requirements.txt
+alembic upgrade head
 uvicorn app.main:app --app-dir backend --reload
 ```
+
+API routes are available both at the compatibility root paths and under `/api/v1`. Core list endpoints accept `page`, `page_size`, `sort_by`, and `sort_order=asc|desc`, and return `items` plus pagination metadata.
+
+Run tests with `pytest backend/tests -v`; run backend lint with `ruff check backend`.
 
 ### Frontend
 
