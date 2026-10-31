@@ -1,8 +1,11 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
+import time
+import uuid
 
-from app.database import Base, engine
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from app.config import settings
+from app.core.exceptions import register_exception_handlers
+from app.core.logging import configure_logging, log_request
 from app.routers.alerts import router as alerts_router
 from app.routers.analytics import router as analytics_router
 from app.routers.assistant import router as assistant_router
@@ -15,16 +18,29 @@ from app.routers.search import router as search_router
 from app.routers.settings import router as settings_router
 
 app = FastAPI(title="NeuroSOC", version="0.1.0", docs_url="/docs", openapi_url="/openapi.json")
-app.add_middleware(SessionMiddleware, secret_key="dev-secret")
+configure_logging(settings.log_level)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
+register_exception_handlers(app)
+
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex)
+    started = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - started) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    log_request(request.method, request.url.path, response.status_code, duration_ms, request_id)
+    return response
+
 
 app.include_router(auth_router)
 app.include_router(events_router)
@@ -36,6 +52,12 @@ app.include_router(reports_router)
 app.include_router(analytics_router)
 app.include_router(settings_router)
 app.include_router(assistant_router)
+
+for router in (
+    auth_router, events_router, alerts_router, detections_router, search_router,
+    cases_router, reports_router, analytics_router, settings_router, assistant_router,
+):
+    app.include_router(router, prefix="/api/v1")
 
 
 @app.get("/health")
