@@ -13,6 +13,7 @@ import {
   Legend,
 } from "chart.js";
 import { api, AlertRecord, CaseRecord, DetectionRecord, EventRecord, Summary } from "./api";
+import { getAccessToken, login, logout, register } from "./auth";
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend);
 
@@ -101,7 +102,35 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
+function AuthPage({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    try {
+      if (mode === "login") {
+        await login(username, password);
+        onAuthenticated();
+      } else {
+        await register(username, email, password);
+        setMode("login");
+      }
+    } catch {
+      setError("Authentication request failed. Check your credentials and try again.");
+    }
+  }
+
+  return <main className="mx-auto max-w-md p-8"><h1 className="text-2xl font-semibold">{mode === "login" ? "Sign in" : "Register"}</h1><form onSubmit={submit} className="mt-6 space-y-3"><input aria-label="Username" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full rounded border border-slate-700 bg-slate-900 p-3" /><input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded border border-slate-700 bg-slate-900 p-3" />{mode === "register" && <input aria-label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded border border-slate-700 bg-slate-900 p-3" />}<button className="rounded bg-cyan-700 px-4 py-2">Continue</button><button type="button" onClick={() => setMode(mode === "login" ? "register" : "login")} className="ml-3 text-cyan-300">{mode === "login" ? "Create account" : "Sign in instead"}</button>{error && <p role="alert" className="text-red-400">{error}</p>}</form></main>;
+}
+
 export default function App() {
+  const [, forceRender] = useState(0);
+  if (!getAccessToken()) return <AuthPage onAuthenticated={() => forceRender((value) => value + 1)} />;
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="flex min-h-screen flex-col lg:flex-row">
@@ -110,6 +139,7 @@ export default function App() {
             <p className="text-sm uppercase tracking-[0.3em] text-cyan-400">NeuroSOC</p>
             <h1 className="text-2xl font-semibold">AI-Assisted SOC</h1>
           </div>
+          <button type="button" onClick={() => { logout(); forceRender((value) => value + 1); }} className="mb-4 text-sm text-cyan-300">Sign out</button>
           <nav className="space-y-2">
             {menu.map((item) => (
               <Link key={item.path} to={item.path} className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800">

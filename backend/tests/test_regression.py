@@ -6,12 +6,25 @@ from fastapi.testclient import TestClient
 
 from app.database import SessionLocal
 from app.main import app
-from app.models import Detection, Event, Rule
+from app.models import Detection, Event, Rule, User
 from app.security import hash_password, verify_password
 from app.services.detection_service import run_detections
 from app.services.ingest_service import ingest_file, ingest_file_report, normalize_timestamp
 
 client = TestClient(app)
+
+
+def analyst_headers(username: str = "regression-analyst") -> dict[str, str]:
+    registered = client.post("/auth/register", json={"username": username, "email": f"{username}@example.com", "password": "Password123!"})
+    assert registered.status_code == 200, registered.text
+    db = SessionLocal()
+    user = db.query(User).filter(User.username == username).first()
+    user.role = "SOC_ANALYST"
+    db.commit()
+    db.close()
+    login = client.post("/auth/login", json={"username": username, "password": "Password123!"})
+    assert login.status_code == 200, login.text
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
 def test_argon2_hash_and_sha256_legacy_verification():
@@ -24,7 +37,7 @@ def test_argon2_hash_and_sha256_legacy_verification():
 
 
 def test_event_metadata_round_trip():
-    response = client.post("/events", json={"message": "metadata event", "metadata": {"source_ip": "192.0.2.1"}})
+    response = client.post("/events", headers=analyst_headers(), json={"message": "metadata event", "metadata": {"source_ip": "192.0.2.1"}})
     assert response.status_code == 200
     assert response.json()["metadata"] == {"source_ip": "192.0.2.1"}
 
@@ -46,14 +59,14 @@ def test_json_ingestion_maps_payload_metadata():
 
 
 def test_versioned_events_and_pagination_contract():
-    response = client.get("/api/v1/events?page=1&page_size=10&sort_by=timestamp&sort_order=desc")
+    response = client.get("/api/v1/events?page=1&page_size=10&sort_by=timestamp&sort_order=desc", headers=analyst_headers("pagination-analyst"))
     assert response.status_code == 200
     assert "items" in response.json()
     assert "pagination" in response.json()
 
 
 def test_invalid_event_sort_is_rejected():
-    response = client.get("/api/v1/events?sort_by=message")
+    response = client.get("/api/v1/events?sort_by=message", headers=analyst_headers("sort-analyst"))
     assert response.status_code == 422
 
 
