@@ -18,7 +18,17 @@ class Settings(BaseSettings):
     refresh_expiry_days: int = Field(default=7, ge=1, le=365)
     password_reset_expiry_minutes: int = Field(default=30, ge=5, le=1440)
     auth_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
-    ai_provider: Literal["mock", "openai"] = "mock"
+    ai_provider: Literal["fallback", "mock", "openai", "external"] = "fallback"
+    ai_api_key: str | None = None
+    ai_base_url: str = "https://api.openai.com/v1"
+    ai_model: str = "gpt-4o-mini"
+    ai_timeout_seconds: int = Field(default=30, ge=1, le=300)
+    ai_retries: int = Field(default=1, ge=0, le=3)
+    ai_max_tokens: int = Field(default=1800, ge=256, le=16000)
+    ai_temperature: float = Field(default=0.2, ge=0, le=2)
+    ai_context_max_events: int = Field(default=50, ge=1, le=500)
+    ai_max_field_chars: int = Field(default=4000, ge=100, le=20000)
+    ai_enabled: bool = True
     upload_dir: Path = Path("./uploads")
     upload_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
     rate_limit: int = Field(default=60, ge=1)
