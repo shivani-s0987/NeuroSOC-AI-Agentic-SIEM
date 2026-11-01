@@ -1,0 +1,17 @@
+id: failed_login_spike
+name: Failed Login Spike Detection
+description: Repeated failed authentication attempts from one source or legacy compatibility payload.
+enabled: true
+severity: high
+category: authentication
+tags: [brute-force, legacy]
+logsource: {category: authentication}
+detection:
+  selection: {event_type: {operator: in, value: [auth, authentication, login]}, message: {operator: contains, value: failed}}
+  condition: selection
+  timeframe: 10m
+  count: 5
+  group_by: [source_ip]
+mitre: {tactics: [TA0006], techniques: [T1110]}
+response: {create_alert: true, recommended_action: Investigate the authentication source and affected account.}
+version: 1

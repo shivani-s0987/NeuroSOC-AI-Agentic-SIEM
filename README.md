@@ -17,6 +17,10 @@
 
 **Analyze • Detect • Investigate • Correlate • Respond**
 
+## Threat intelligence and MITRE ATT&CK
+
+NeuroSOC includes normalized IOC management, provenance-preserving lifecycle state, JSON/CSV imports, event-to-IOC matching, URLhaus provider lookups, and an imported MITRE ATT&CK technique workspace. See [Threat intelligence documentation](docs/threat-intel/THREAT_INTELLIGENCE.md).
+
 </div>
 
 ---
@@ -29,18 +33,25 @@ Designed for **defensive security, threat hunting, security research, and SOC tr
 
 ---
 
-## ✨ Key Features
+## Implemented in this revision
 
-- 🛡️ Multi-source Security Log Ingestion
-- 📊 Real-time SIEM Dashboard
-- 🔍 Full-Text Log Search & Filtering
-- 🚨 Detection Rule Engine & Alert Correlation
-- 🤖 AI-Assisted Incident Investigation
-- 🎯 MITRE ATT&CK Mapping
-- 📁 Security Case Management
-- 📈 Interactive Security Analytics
-- 🔐 JWT Authentication & Role-Based Access
-- ⚡ FastAPI + React + SQLite Architecture
+- Argon2id password hashing with legacy SHA-256 verification and rehashing on login
+- Short-lived access JWTs and separate refresh JWTs
+- SQLite and PostgreSQL configuration, plus Bearer-token authentication
+- Bounded JSONL/log/CSV uploads and normalized UTC timestamps
+- Threshold-based failed-login, SSH brute-force, and repeated denied-access detections
+- Rule and detection deduplication
+- API-backed React overview, event, alert, detection, and case views
+- SQLite/PostgreSQL CLI backup and confirmed restore workflows
+- Docker Compose for frontend, API, and PostgreSQL
+
+## Current limitations
+
+- The remaining frontend menu routes are shells until their backend contracts are completed.
+- Alembic migrations exist for the current schema, but production rollout and multi-version migration history require operational review.
+- Redis/Celery, WebSockets, playbooks, and autonomous response may require external platform operations.
+- The AI endpoint is a provider boundary with deterministic fallback, not an autonomous provider guarantee.
+- Real-time ingestion and a complete browser login flow require additional integration.
 
 ---
 
@@ -83,10 +94,15 @@ Security Logs
 ### Backend
 
 ```bash
-pip install -r backend/requirements.txt
-
+cp .env.example .env
+python -m pip install -r backend/requirements.txt
+alembic upgrade head
 uvicorn app.main:app --app-dir backend --reload
 ```
+
+API routes are available both at the compatibility root paths and under `/api/v1`. Core list endpoints accept `page`, `page_size`, `sort_by`, and `sort_order=asc|desc`, and return `items` plus pagination metadata.
+
+Run tests with `pytest backend/tests -v`; run backend lint with `ruff check backend`.
 
 ### Frontend
 
@@ -103,6 +119,22 @@ npm run dev
 ```bash
 python -m app.cli --help
 ```
+
+### Production-like deployment
+
+Create a separate PostgreSQL password, JWT secret, refresh secret, and explicit frontend origin. Never reuse local `.env` values.
+
+```bash
+export POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+export JWT_SECRET="$(openssl rand -hex 32)"
+export JWT_REFRESH_SECRET="$(openssl rand -hex 32)"
+export CORS_ORIGINS="https://soc.example.com"
+docker compose up -d --build
+curl -fsS http://localhost:8000/health/live
+curl -fsS http://localhost:8000/health/ready
+```
+
+Production containers require PostgreSQL; SQLite is only supported in development and isolated automated testing. See [production configuration](docs/production/ENVIRONMENT_CONFIGURATION.md), [deployment](docs/production/DEPLOYMENT_RUNBOOK.md), [backup and restore](docs/production/BACKUP_AND_RESTORE.md), and [release operations](docs/production/RELEASE_PROCESS.md).
 
 ---
 
