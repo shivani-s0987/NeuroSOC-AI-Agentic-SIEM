@@ -1,26 +1,77 @@
 name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: neurosoc_test
+          POSTGRES_USER: neurosoc
+          POSTGRES_PASSWORD: neurosoc-test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U neurosoc -d neurosoc_test"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      APP_ENV: testing
+      DATABASE_URL: postgresql+psycopg://neurosoc:neurosoc-test@localhost:5432/neurosoc_test
+      JWT_SECRET: ci-test-secret-that-is-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-that-is-at-least-32-characters
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - run: pip install -r backend/requirements.txt
-      - run: pytest backend/tests
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: python -m pip install -r backend/requirements.txt
+      - run: ruff check backend
+      - run: ruff format --check backend/app/cli.py backend/app/config.py backend/app/database.py backend/app/main.py backend/app/routers/auth.py backend/app/routers/realtime.py backend/app/routers/threat_intelligence.py backend/app/services/ioc_service.py backend/app/services/realtime_service.py backend/app/worker.py
+      - run: python -m alembic upgrade head
+      - run: pytest backend/tests --cov=backend/app --cov-report=xml --cov-report=term-missing
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - run: cd frontend && npm install && npm run build
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config
+        env:
+          POSTGRES_PASSWORD: ci-only-not-a-production-secret
+          JWT_SECRET: ci-backend-secret-at-least-32-characters
+          JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
+          CORS_ORIGINS: https://app.example.invalid
+      - run: docker build -t neurosoc-api:test .
+      - run: docker build -t neurosoc-worker:test -f Dockerfile.worker .

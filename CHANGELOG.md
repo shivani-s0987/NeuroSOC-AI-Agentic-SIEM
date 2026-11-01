@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### PR 8 - Production Readiness
+
+- Added production startup validation that rejects SQLite and development secrets.
+- Added database readiness, non-root containers, PostgreSQL worker support, and safe Compose configuration.
+- Added integrity-verified database backups and confirmed PostgreSQL restore tooling.
+- Added separated CI, container, and security workflows.
+- Added production release, deployment, rollback, observability, backup, and configuration documentation.
+
 ### PR 1 - Backend Foundation Stabilization
 
 - Added environment validation for SQLite/PostgreSQL configuration and production secrets.

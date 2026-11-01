@@ -40,12 +40,22 @@ class Settings(BaseSettings):
     worker_max_attempts: int = Field(default=5, ge=1, le=20)
     worker_poll_seconds: int = Field(default=2, ge=1, le=60)
     realtime_max_connections: int = Field(default=1000, ge=1, le=10000)
+    trusted_hosts: str = "localhost,127.0.0.1,testserver"
+    database_pool_size: int = Field(default=5, ge=1, le=100)
+    database_max_overflow: int = Field(default=10, ge=0, le=200)
+    database_pool_timeout_seconds: int = Field(default=30, ge=1, le=300)
+    backup_dir: Path = Path("./backups")
+    backup_retention_days: int = Field(default=30, ge=1, le=3650)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        return [host.strip() for host in self.trusted_hosts.split(",") if host.strip()]
 
     @model_validator(mode="after")
     def validate_runtime(self) -> "Settings":
@@ -58,6 +68,19 @@ class Settings(BaseSettings):
                 raise ValueError("A secure JWT_SECRET is required in production")
             if self.jwt_refresh_secret in insecure or len(self.jwt_refresh_secret) < 32:
                 raise ValueError("A secure JWT_REFRESH_SECRET is required in production")
+            if self.database_url.startswith("sqlite"):
+                raise ValueError("Production requires PostgreSQL; SQLite fallback is not allowed")
+            if not self.database_url.startswith(("postgresql://", "postgresql+psycopg://")):
+                raise ValueError("Production DATABASE_URL must be PostgreSQL")
+            if "*" in self.cors_origins or "localhost" in self.cors_origins:
+                raise ValueError(
+                    "Production CORS_ORIGINS must not contain wildcard or localhost origins"
+                )
+            if (
+                "change-me" in self.jwt_secret.lower()
+                or "change-me" in self.jwt_refresh_secret.lower()
+            ):
+                raise ValueError("Development secrets are not allowed in production")
         return self
 
 

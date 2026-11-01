@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 from idna import encode as idna_encode
@@ -41,14 +40,19 @@ def normalize_ioc(value: str, ioc_type: str) -> str:
             hostname = str(ipaddress.ip_address(hostname))
         except ValueError:
             hostname = idna_encode(hostname).decode("ascii")
-        port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
         explicit_port = f":{parsed.port}" if parsed.port is not None else ""
         path = parsed.path or "/"
-        return f"{parsed.scheme.lower()}://{hostname}{explicit_port}{path}" + (f"?{parsed.query}" if parsed.query else "") + (f"#{parsed.fragment}" if parsed.fragment else "")
+        return (
+            f"{parsed.scheme.lower()}://{hostname}{explicit_port}{path}"
+            + (f"?{parsed.query}" if parsed.query else "")
+            + (f"#{parsed.fragment}" if parsed.fragment else "")
+        )
     if kind in HASH_LENGTHS:
         normalized = value.lower()
         if not re.fullmatch(r"[0-9a-f]+", normalized) or len(normalized) != HASH_LENGTHS[kind]:
-            raise ValueError(f"{kind.upper()} must contain exactly {HASH_LENGTHS[kind]} hexadecimal characters")
+            raise ValueError(
+                f"{kind.upper()} must contain exactly {HASH_LENGTHS[kind]} hexadecimal characters"
+            )
         return normalized
     raise ValueError(f"Unsupported IOC type: {ioc_type}")
 
@@ -85,15 +89,23 @@ def extract_event_candidates(event) -> list[tuple[str, str, str]]:
             continue
         text = str(value)
         if field in {"src_ip", "dst_ip"}:
-            candidates.append((field, field.endswith("ip") and infer_ioc_type(text) or "domain", text))
+            candidates.append(
+                (field, field.endswith("ip") and infer_ioc_type(text) or "domain", text)
+            )
             continue
         for address in re.findall(r"(?<![\w:.])(?:\d{1,3}\.){3}\d{1,3}(?![\w:.])", text):
             candidates.append((field, "ipv4", address))
         for url in re.findall(r"https?://[^\s\"<>]+", text):
             candidates.append((field, "url", url.rstrip(".,)")))
-        for domain in re.findall(r"(?<![@\w.-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}(?![\w.-])", text):
+        for domain in re.findall(
+            r"(?<![@\w.-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}(?![\w.-])",
+            text,
+        ):
             if not domain.lower().endswith((".png", ".jpg", ".js", ".css")):
                 candidates.append((field, "domain", domain))
-        for hash_value in re.findall(r"(?<![0-9a-fA-F])[0-9a-fA-F]{32}(?![0-9a-fA-F])|(?<![0-9a-fA-F])[0-9a-fA-F]{40}(?![0-9a-fA-F])|(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])", text):
+        for hash_value in re.findall(
+            r"(?<![0-9a-fA-F])[0-9a-fA-F]{32}(?![0-9a-fA-F])|(?<![0-9a-fA-F])[0-9a-fA-F]{40}(?![0-9a-fA-F])|(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])",
+            text,
+        ):
             candidates.append((field, infer_ioc_type(hash_value), hash_value))
     return candidates
