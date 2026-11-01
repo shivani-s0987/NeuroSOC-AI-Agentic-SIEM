@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Any, Generic, List, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -163,3 +163,80 @@ class ReportOut(BaseModel):
     format: str
     content: str
     created_at: datetime
+
+
+class EvidenceReference(BaseModel):
+    reference_type: Literal["event", "alert", "rule", "case", "intel", "mitre"]
+    reference_id: str
+    label: str
+
+
+class InvestigationFinding(BaseModel):
+    title: str
+    description: str
+    evidence_references: list[str] = Field(default_factory=list)
+    confidence: float = Field(ge=0, le=1)
+    observed_fact: bool = False
+
+
+class AttackAnalysis(BaseModel):
+    potential_technique: str
+    tactic: str | None = None
+    technique_id: str | None = None
+    evidence_references: list[str] = Field(default_factory=list)
+    alternative_explanations: list[str] = Field(default_factory=list)
+
+
+class RiskAssessment(BaseModel):
+    potential_impact: str
+    severity_assessment: str
+    confidence: float = Field(ge=0, le=1)
+    uncertainty: str
+    missing_evidence: list[str] = Field(default_factory=list)
+
+
+class InvestigationResultSchema(BaseModel):
+    executive_summary: str
+    alert_severity: str
+    detection_rule: str | None = None
+    event_count: int = Field(ge=0)
+    affected_assets: list[str] = Field(default_factory=list)
+    affected_users: list[str] = Field(default_factory=list)
+    investigation_status: str = "requires_review"
+    findings: list[InvestigationFinding] = Field(default_factory=list)
+    attack_analysis: list[AttackAnalysis] = Field(default_factory=list)
+    timeline: list[dict[str, Any]] = Field(default_factory=list)
+    risk_assessment: RiskAssessment
+    recommended_investigation_steps: list[str] = Field(default_factory=list)
+    suggested_actions: list[str] = Field(default_factory=list)
+    actions_already_performed: list[str] = Field(default_factory=list)
+    actions_requiring_approval: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class InvestigationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    alert_id: int
+    case_id: int | None = None
+    status: str
+    provider: str
+    model: str | None = None
+    started_at: datetime
+    completed_at: datetime | None = None
+    error_category: str | None = None
+    version: int
+    result: InvestigationResultSchema | None = None
+    evidence_references: list[str] = Field(default_factory=list)
+    fallback: bool = False
+
+
+class InvestigationCreate(BaseModel):
+    alert_id: int | None = Field(default=None, gt=0)
+    case_id: int | None = Field(default=None, gt=0)
+    force_rerun: bool = False
+
+
+class InvestigationFeedbackCreate(BaseModel):
+    category: str = Field(min_length=1, max_length=80)
+    comments: str | None = Field(default=None, max_length=2000)

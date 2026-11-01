@@ -151,6 +151,44 @@ class Report(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
+class Investigation(Base):
+    __tablename__ = "investigations"
+    __table_args__ = {"extend_existing": True}
+    id = Column(Integer, primary_key=True, index=True)
+    alert_id = Column(Integer, ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="SET NULL"), nullable=True, index=True)
+    initiated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String(50), nullable=False, default="PENDING", index=True)
+    provider = Column(String(80), nullable=False, default="fallback")
+    model = Column(String(120), nullable=True)
+    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    error_category = Column(String(80), nullable=True)
+    version = Column(Integer, nullable=False, default=1)
+    rerun_of = Column(Integer, ForeignKey("investigations.id", ondelete="SET NULL"), nullable=True)
+
+
+class InvestigationResult(Base):
+    __tablename__ = "investigation_results"
+    __table_args__ = {"extend_existing": True}
+    id = Column(Integer, primary_key=True, index=True)
+    investigation_id = Column(Integer, ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    result = Column(JSON, nullable=False, default=dict)
+    evidence_references = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class InvestigationFeedback(Base):
+    __tablename__ = "investigation_feedback"
+    __table_args__ = {"extend_existing": True}
+    id = Column(Integer, primary_key=True, index=True)
+    investigation_id = Column(Integer, ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(String(80), nullable=False)
+    comments = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class RefreshTokenSession(Base):
     __tablename__ = "refresh_token_sessions"
     __table_args__ = {"extend_existing": True}

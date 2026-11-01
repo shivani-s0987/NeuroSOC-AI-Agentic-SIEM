@@ -13,8 +13,13 @@ def database_schema():
 
 @pytest.fixture(autouse=True)
 def clean_database(database_schema):
+    from app.core.rate_limit import _buckets
+    _buckets.clear()
     db = SessionLocal()
     for model in (
+        __import__("app.models", fromlist=["InvestigationFeedback"]).InvestigationFeedback,
+        __import__("app.models", fromlist=["InvestigationResult"]).InvestigationResult,
+        __import__("app.models", fromlist=["Investigation"]).Investigation,
         __import__("app.models", fromlist=["RefreshTokenSession"]).RefreshTokenSession,
         __import__("app.models", fromlist=["PasswordResetToken"]).PasswordResetToken,
         __import__("app.models", fromlist=["AuditLog"]).AuditLog,

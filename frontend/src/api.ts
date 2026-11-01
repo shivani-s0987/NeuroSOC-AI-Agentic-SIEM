@@ -54,3 +54,42 @@ export interface CaseRecord {
   summary?: string;
   created_at: string;
 }
+
+export interface InvestigationFinding {
+  title: string;
+  description: string;
+  evidence_references: string[];
+  confidence: number;
+  observed_fact: boolean;
+}
+
+export interface Investigation {
+  id: number;
+  alert_id: number;
+  case_id?: number;
+  status: string;
+  provider: string;
+  model?: string;
+  started_at: string;
+  completed_at?: string;
+  error_category?: string;
+  version: number;
+  fallback: boolean;
+  evidence_references: string[];
+  result?: {
+    executive_summary: string;
+    alert_severity: string;
+    detection_rule?: string;
+    event_count: number;
+    affected_assets: string[];
+    affected_users: string[];
+    findings: InvestigationFinding[];
+    timeline: Array<{ timestamp?: string; reference_id?: string; event_type?: string; source?: string }>;
+    risk_assessment: { potential_impact: string; severity_assessment: string; confidence: number; uncertainty: string; missing_evidence: string[] };
+    recommended_investigation_steps: string[];
+    suggested_actions: string[];
+    actions_already_performed: string[];
+    actions_requiring_approval: string[];
+    limitations: string[];
+  };
+}
