@@ -10,7 +10,11 @@ def enrich_indicator(db: Session, indicator: str, intel_type: str = "ip") -> Thr
     intel = db.query(ThreatIntel).filter(ThreatIntel.indicator == indicator).first()
     if intel:
         return intel
-    kind = "ipv4" if intel_type.lower() in {"ip", "ipv4"} else infer_ioc_type(indicator) or intel_type.lower()
+    kind = (
+        "ipv4"
+        if intel_type.lower() in {"ip", "ipv4"}
+        else infer_ioc_type(indicator) or intel_type.lower()
+    )
     try:
         normalized = normalize_ioc(indicator, kind)
     except ValueError:

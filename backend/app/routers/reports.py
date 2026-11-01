@@ -15,7 +15,14 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 @router.get("", response_model=Paginated[ReportOut])
-def list_reports(db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.REPORTS_READ)), paging: dict = Depends(pagination_params), report_type: str | None = Query(None), start_time: datetime | None = None, end_time: datetime | None = None):
+def list_reports(
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.REPORTS_READ)),
+    paging: dict = Depends(pagination_params),
+    report_type: str | None = Query(None),
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+):
     allowed = {"id", "created_at", "title", "report_type"}
     if paging["sort_by"] not in allowed:
         raise HTTPException(status_code=422, detail=f"sort_by must be one of: {sorted(allowed)}")
@@ -27,11 +34,22 @@ def list_reports(db: Session = Depends(get_db), _actor=Depends(require_permissio
     if end_time:
         query = query.filter(Report.created_at <= end_time)
     total = query.count()
-    query = apply_sort(query, Report, paging["sort_by"], allowed, paging["sort_order"], "created_at")
+    query = apply_sort(
+        query, Report, paging["sort_by"], allowed, paging["sort_order"], "created_at"
+    )
     offset = (paging["page"] - 1) * paging["page_size"]
-    return paginated(query.offset(offset).limit(paging["page_size"]).all(), paging["page"], paging["page_size"], total)
+    return paginated(
+        query.offset(offset).limit(paging["page_size"]).all(),
+        paging["page"],
+        paging["page_size"],
+        total,
+    )
 
 
 @router.post("", response_model=ReportOut)
-def create(payload: ReportCreate, db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.REPORTS_MANAGE))) -> Report:
+def create(
+    payload: ReportCreate,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.REPORTS_MANAGE)),
+) -> Report:
     return create_report(db, payload.title, payload.report_type, payload.format)

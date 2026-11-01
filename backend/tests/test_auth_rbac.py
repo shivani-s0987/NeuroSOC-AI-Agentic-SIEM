@@ -62,7 +62,14 @@ def test_refresh_rotation_and_reuse_family_revocation():
     reused = client.post("/auth/refresh", json={"refresh_token": first_refresh})
     assert reused.status_code == 401
     db = SessionLocal()
-    family = db.query(RefreshTokenSession).filter(RefreshTokenSession.replaced_by_hash == hashlib.sha256(second_refresh.encode()).hexdigest()).first()
+    family = (
+        db.query(RefreshTokenSession)
+        .filter(
+            RefreshTokenSession.replaced_by_hash
+            == hashlib.sha256(second_refresh.encode()).hexdigest()
+        )
+        .first()
+    )
     assert family is not None or db.query(RefreshTokenSession).count() >= 2
     db.close()
 
@@ -73,13 +80,25 @@ def test_reset_token_is_single_use():
     response = client.post("/auth/forgot-password", json={"email": "reset-user@example.com"})
     assert response.status_code == 200
     token = response.json()["development_token"]
-    reset = client.post("/auth/reset-password", json={"token": token, "password": "ResetPassword123!"})
+    reset = client.post(
+        "/auth/reset-password", json={"token": token, "password": "ResetPassword123!"}
+    )
     assert reset.status_code == 200
-    assert client.post("/auth/reset-password", json={"token": token, "password": "AnotherPassword123!"}).status_code == 400
+    assert (
+        client.post(
+            "/auth/reset-password", json={"token": token, "password": "AnotherPassword123!"}
+        ).status_code
+        == 400
+    )
 
 
 def test_audit_never_persists_sensitive_keys():
     db = SessionLocal()
-    entry = record_audit(db, "test-user", "login", details={"password": "secret", "access_token": "raw-token", "outcome_detail": "ok"})
+    entry = record_audit(
+        db,
+        "test-user",
+        "login",
+        details={"password": "secret", "access_token": "raw-token", "outcome_detail": "ok"},
+    )
     assert entry.details == {"outcome_detail": "ok"}
     db.close()

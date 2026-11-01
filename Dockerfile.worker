@@ -10,9 +10,9 @@ RUN apt-get update \
     && groupadd --gid 10001 neurosoc \
     && useradd --uid 10001 --gid neurosoc --home-dir /app --shell /usr/sbin/nologin neurosoc
 
-WORKDIR /app
+WORKDIR /app/backend
 COPY backend/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
-COPY --chown=neurosoc:neurosoc backend ./backend
+COPY --chown=neurosoc:neurosoc backend ./
 USER neurosoc
-CMD ["celery", "-A", "app.worker", "--app-dir", "backend", "worker", "--loglevel=INFO", "--concurrency=2"]
+CMD ["celery", "-A", "app.worker", "worker", "--loglevel=INFO", "--concurrency=2"]

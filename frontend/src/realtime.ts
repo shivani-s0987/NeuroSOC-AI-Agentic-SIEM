@@ -61,6 +61,8 @@ export function startRealtime(onNotification: (notification: RealtimeNotificatio
           status("connected");
           reconnectCount = 0;
           void reconcile();
+        } else if (payload.event_id) {
+          onNotification(payload as RealtimeNotification);
         }
       } catch {
         // Ignore malformed server frames; notifications are reconciled by API.

@@ -16,7 +16,8 @@ def search(
     user: str | None = None,
     severity: str | None = None,
     src_ip: str | None = None,
-    db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_READ)),
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.EVENTS_READ)),
 ) -> list[dict[str, object]]:
     results = search_events(db, query=query, host=host, user=user, severity=severity, src_ip=src_ip)
     return [
@@ -30,6 +31,10 @@ def search(
 
 
 @router.post("/saved")
-def save(payload: dict[str, str], db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_WRITE))) -> dict[str, str]:
+def save(
+    payload: dict[str, str],
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.EVENTS_WRITE)),
+) -> dict[str, str]:
     saved = save_search(db, payload["name"], payload["query"], payload["owner"])
     return {"id": str(saved.id), "name": str(saved.name)}

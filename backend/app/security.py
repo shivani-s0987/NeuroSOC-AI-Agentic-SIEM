@@ -38,9 +38,15 @@ def needs_rehash(hashed: str) -> bool:
     return not hashed.startswith("$argon2") or _passwords.check_needs_rehash(hashed)
 
 
-def create_token(subject: str, role: str, refresh: bool = False, family_id: str | None = None) -> str:
+def create_token(
+    subject: str, role: str, refresh: bool = False, family_id: str | None = None
+) -> str:
     now = datetime.now(timezone.utc)
-    lifetime = timedelta(days=settings.refresh_expiry_days) if refresh else timedelta(minutes=settings.jwt_expiry_minutes)
+    lifetime = (
+        timedelta(days=settings.refresh_expiry_days)
+        if refresh
+        else timedelta(minutes=settings.jwt_expiry_minutes)
+    )
     payload = {
         "sub": subject,
         "role": role,
@@ -84,7 +90,9 @@ def get_current_user(
     try:
         payload = decode_token(credentials.credentials)
     except jwt.PyJWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        ) from None
     user = db.query(User).filter(User.username == payload["sub"], User.disabled == 0).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
@@ -95,7 +103,9 @@ def require_roles(*allowed_roles: str):
     def dependency(user: User = Depends(get_current_user)) -> User:
         normalized = normalize_role(str(user.role))
         if normalized not in {normalize_role(role) for role in allowed_roles}:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+            )
         return user
 
     return dependency
@@ -104,7 +114,9 @@ def require_roles(*allowed_roles: str):
 def require_permission(permission: Permission):
     def dependency(user: User = Depends(get_current_user)) -> User:
         if not has_permission(str(user.role), permission):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+            )
         return user
 
     return dependency

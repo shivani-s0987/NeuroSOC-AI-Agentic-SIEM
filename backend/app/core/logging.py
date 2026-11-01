@@ -5,10 +5,14 @@ from datetime import datetime, timezone
 
 
 def configure_logging(level: str) -> None:
-    logging.basicConfig(stream=sys.stdout, level=getattr(logging, level.upper(), logging.INFO), format="%(message)s")
+    logging.basicConfig(
+        stream=sys.stdout, level=getattr(logging, level.upper(), logging.INFO), format="%(message)s"
+    )
 
 
-def log_request(method: str, path: str, status_code: int, duration_ms: float, request_id: str) -> None:
+def log_request(
+    method: str, path: str, status_code: int, duration_ms: float, request_id: str
+) -> None:
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "level": "INFO",

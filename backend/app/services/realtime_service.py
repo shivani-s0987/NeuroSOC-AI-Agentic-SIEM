@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -34,7 +35,38 @@ def publish_notification(
     )
     db.add(notification)
     db.flush()
+    publish_realtime_notification(notification)
     return notification
+
+
+def serialize_notification(notification: Notification) -> dict[str, Any]:
+    return {
+        "event_id": notification.notification_id,
+        "event_type": notification.event_type,
+        "schema_version": notification.schema_version,
+        "timestamp": notification.timestamp.isoformat(),
+        "resource": {
+            "type": notification.resource_type,
+            "id": notification.resource_id,
+        },
+        "data": notification.data or {},
+    }
+
+
+def publish_realtime_notification(notification: Notification) -> None:
+    try:
+        import redis
+
+        redis.Redis.from_url(settings.redis_url).publish(
+            "neurosoc:notifications",
+            json.dumps(serialize_notification(notification)),
+        )
+    except Exception as exc:
+        logging.getLogger("neurosoc.realtime").warning(
+            "realtime notification pubsub publish failed notification=%s error=%s",
+            notification.notification_id,
+            exc,
+        )
 
 
 def queue_event(db: Session, event: Event) -> ProcessingJob:

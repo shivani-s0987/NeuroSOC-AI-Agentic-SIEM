@@ -42,8 +42,15 @@ def list_events(
     if paging["sort_by"] not in allowed:
         raise HTTPException(status_code=422, detail=f"sort_by must be one of: {sorted(allowed)}")
     query = db.query(Event)
-    filters = {"host": host, "user": user, "src_ip": src_ip, "dst_ip": dst_ip,
-               "event_type": event_type, "severity": severity, "source": source}
+    filters = {
+        "host": host,
+        "user": user,
+        "src_ip": src_ip,
+        "dst_ip": dst_ip,
+        "event_type": event_type,
+        "severity": severity,
+        "source": source,
+    }
     for field, value in filters.items():
         if value is not None:
             query = query.filter(getattr(Event, field) == value)
@@ -61,7 +68,11 @@ def list_events(
 
 
 @router.post("", response_model=EventOut)
-def create_event(payload: EventCreate, db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_WRITE))) -> Event:
+def create_event(
+    payload: EventCreate,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.EVENTS_WRITE)),
+) -> Event:
     data = payload.model_dump(exclude={"metadata", "idempotency_key", "external_id"})
     data["payload_metadata"] = payload.metadata or {}
     data["idempotency_key"] = payload.idempotency_key
@@ -71,28 +82,44 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db), _actor=Dep
     try:
         db.flush()
         queue_event(db, event)
-        publish_notification(db, "event.created", "event", event.id, {
-            "severity": event.severity,
-            "source": event.source,
-        })
+        publish_notification(
+            db,
+            "event.created",
+            "event",
+            event.id,
+            {
+                "severity": event.severity,
+                "source": event.source,
+            },
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="An event with this external or idempotency identifier already exists")
+        raise HTTPException(
+            status_code=409,
+            detail="An event with this external or idempotency identifier already exists",
+        )
     db.refresh(event)
     enqueue_celery_event(event.id)
     return event
 
 
 @router.post("/ingest", response_model=EventIngestResult)
-def ingest_event(payload: EventCreate, db: Session = Depends(get_db), actor=Depends(require_permission(Permission.EVENTS_WRITE))) -> EventIngestResult:
+def ingest_event(
+    payload: EventCreate,
+    db: Session = Depends(get_db),
+    actor=Depends(require_permission(Permission.EVENTS_WRITE)),
+) -> EventIngestResult:
     if payload.idempotency_key:
         existing = db.query(Event).filter(Event.idempotency_key == payload.idempotency_key).first()
         if existing:
             return EventIngestResult(accepted=True, duplicate=True, id=existing.id)
     event_data = payload.model_dump(exclude={"metadata", "idempotency_key", "external_id"})
-    event_data.update(payload_metadata=payload.metadata or {}, idempotency_key=payload.idempotency_key,
-                      external_id=payload.external_id)
+    event_data.update(
+        payload_metadata=payload.metadata or {},
+        idempotency_key=payload.idempotency_key,
+        external_id=payload.external_id,
+    )
     event = Event(**event_data)
     db.add(event)
     try:
@@ -109,25 +136,43 @@ def ingest_event(payload: EventCreate, db: Session = Depends(get_db), actor=Depe
 
 
 @router.post("/ingest/batch")
-def ingest_batch(payload: EventBatchCreate, db: Session = Depends(get_db), actor=Depends(require_permission(Permission.EVENTS_WRITE))) -> dict[str, Any]:
+def ingest_batch(
+    payload: EventBatchCreate,
+    db: Session = Depends(get_db),
+    actor=Depends(require_permission(Permission.EVENTS_WRITE)),
+) -> dict[str, Any]:
     results: list[EventIngestResult] = []
     for index, item in enumerate(payload.events):
         try:
             if item.idempotency_key:
-                existing = db.query(Event).filter(Event.idempotency_key == item.idempotency_key).first()
+                existing = (
+                    db.query(Event).filter(Event.idempotency_key == item.idempotency_key).first()
+                )
                 if existing:
-                    results.append(EventIngestResult(accepted=True, duplicate=True, id=existing.id, index=index))
+                    results.append(
+                        EventIngestResult(
+                            accepted=True, duplicate=True, id=existing.id, index=index
+                        )
+                    )
                     continue
             result = ingest_event(item, db=db, actor=actor)
             result.index = index
             results.append(result)
         except HTTPException as exc:
             results.append(EventIngestResult(accepted=False, index=index, errors=[str(exc.detail)]))
-    return {"accepted": sum(r.accepted for r in results), "rejected": sum(not r.accepted for r in results), "results": results}
+    return {
+        "accepted": sum(r.accepted for r in results),
+        "rejected": sum(not r.accepted for r in results),
+        "results": results,
+    }
 
 
 @router.get("/processing-status/{event_id}")
-def processing_status(event_id: int, db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_READ))) -> dict[str, Any]:
+def processing_status(
+    event_id: int,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.EVENTS_READ)),
+) -> dict[str, Any]:
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -146,11 +191,15 @@ def import_events(path: str, db: Session = Depends(get_db)) -> dict[str, int]:
 
 
 @router.post("/upload")
-async def upload_events(file: UploadFile = File(...), db: Session = Depends(get_db)) -> dict[str, Any]:
+async def upload_events(
+    file: UploadFile = File(...), db: Session = Depends(get_db)
+) -> dict[str, Any]:
     allowed = {".jsonl", ".log", ".csv"}
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in allowed:
-        raise HTTPException(status_code=415, detail="Only .jsonl, .log, and .csv files are accepted")
+        raise HTTPException(
+            status_code=415, detail="Only .jsonl, .log, and .csv files are accepted"
+        )
     if file.size and file.size > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File exceeds 10 MB")
     upload_dir = Path("./uploads")
@@ -162,7 +211,12 @@ async def upload_events(file: UploadFile = File(...), db: Session = Depends(get_
             raise HTTPException(status_code=413, detail="File exceeds 10 MB")
         destination.write_bytes(content)
         report = ingest_file_report(db, str(destination))
-        return {"imported": report.imported, "rejected": report.rejected, "filename": file.filename or "upload", "errors": report.errors}
+        return {
+            "imported": report.imported,
+            "rejected": report.rejected,
+            "filename": file.filename or "upload",
+            "errors": report.errors,
+        }
     except (OSError, ValueError, csv.Error, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=f"Unable to ingest file: {exc}") from exc
     finally:

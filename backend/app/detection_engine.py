@@ -10,12 +10,33 @@ import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 OPERATORS = {
-    "equals", "not_equals", "contains", "not_contains", "starts_with", "ends_with",
-    "in", "not_in", "greater_than", "greater_than_or_equal", "less_than",
-    "less_than_or_equal", "exists", "not_exists", "regex",
+    "equals",
+    "not_equals",
+    "contains",
+    "not_contains",
+    "starts_with",
+    "ends_with",
+    "in",
+    "not_in",
+    "greater_than",
+    "greater_than_or_equal",
+    "less_than",
+    "less_than_or_equal",
+    "exists",
+    "not_exists",
+    "regex",
 }
 SEVERITIES = {"info", "low", "medium", "high", "critical"}
-GROUP_FIELDS = {"source_ip", "src_ip", "username", "user", "host", "hostname", "event_type", "source"}
+GROUP_FIELDS = {
+    "source_ip",
+    "src_ip",
+    "username",
+    "user",
+    "host",
+    "hostname",
+    "event_type",
+    "source",
+}
 
 
 def parse_duration(value: str) -> timedelta:
@@ -25,7 +46,15 @@ def parse_duration(value: str) -> timedelta:
     amount, unit = int(match.group(1)), match.group(2)
     if amount < 1:
         raise ValueError("timeframe must be positive")
-    return timedelta(seconds=amount if unit == "s" else amount * 60 if unit == "m" else amount * 3600 if unit == "h" else amount * 86400)
+    return timedelta(
+        seconds=amount
+        if unit == "s"
+        else amount * 60
+        if unit == "m"
+        else amount * 3600
+        if unit == "h"
+        else amount * 86400
+    )
 
 
 class Mitre(BaseModel):
@@ -65,11 +94,15 @@ class Rule(BaseModel):
         selection = detection.get("selection")
         if not isinstance(selection, dict) or not selection:
             raise ValueError("detection.selection must be a non-empty object")
-        if detection.get("condition") != "selection" and not isinstance(detection.get("condition"), dict):
+        if detection.get("condition") != "selection" and not isinstance(
+            detection.get("condition"), dict
+        ):
             raise ValueError("unsupported detection condition")
         count = detection.get("count")
         timeframe = detection.get("timeframe")
-        if count is not None and (not isinstance(count, int) or isinstance(count, bool) or count < 1 or count > 1000000):
+        if count is not None and (
+            not isinstance(count, int) or isinstance(count, bool) or count < 1 or count > 1000000
+        ):
             raise ValueError("count must be an integer between 1 and 1000000")
         if timeframe is not None:
             parse_duration(timeframe)
@@ -116,10 +149,24 @@ def normalize_event(event: Any) -> dict[str, Any]:
     if isinstance(event, dict):
         source = event
     else:
-        source = {column: getattr(event, column, None) for column in (
-            "id", "source", "event_type", "severity", "host", "user", "src_ip", "dst_ip",
-            "process_name", "message", "raw", "timestamp", "payload_metadata",
-        )}
+        source = {
+            column: getattr(event, column, None)
+            for column in (
+                "id",
+                "source",
+                "event_type",
+                "severity",
+                "host",
+                "user",
+                "src_ip",
+                "dst_ip",
+                "process_name",
+                "message",
+                "raw",
+                "timestamp",
+                "payload_metadata",
+            )
+        }
     metadata = source.get("payload_metadata") or source.get("metadata") or {}
     if isinstance(metadata, dict):
         source.update(metadata)
@@ -130,7 +177,11 @@ def normalize_event(event: Any) -> dict[str, Any]:
     normalized["command_line"] = source.get("command_line") or source.get("process_name")
     timestamp = source.get("timestamp")
     if isinstance(timestamp, datetime):
-        normalized["timestamp"] = timestamp.replace(tzinfo=timezone.utc) if timestamp.tzinfo is None else timestamp.astimezone(timezone.utc)
+        normalized["timestamp"] = (
+            timestamp.replace(tzinfo=timezone.utc)
+            if timestamp.tzinfo is None
+            else timestamp.astimezone(timezone.utc)
+        )
     return normalized
 
 
@@ -164,9 +215,17 @@ def operator_matches(actual: Any, condition: dict[str, Any] | Any) -> bool:
     if operator == "ends_with":
         return text.lower().endswith(wanted.lower())
     if operator == "in":
-        return actual in expected if isinstance(expected, (list, tuple, set)) else text.lower() in str(expected).lower()
+        return (
+            actual in expected
+            if isinstance(expected, (list, tuple, set))
+            else text.lower() in str(expected).lower()
+        )
     if operator == "not_in":
-        return actual not in expected if isinstance(expected, (list, tuple, set)) else text.lower() not in str(expected).lower()
+        return (
+            actual not in expected
+            if isinstance(expected, (list, tuple, set))
+            else text.lower() not in str(expected).lower()
+        )
     try:
         if operator == "greater_than":
             return float(actual) > float(expected)
@@ -185,12 +244,22 @@ def operator_matches(actual: Any, condition: dict[str, Any] | Any) -> bool:
 
 def selection_matches(event: dict[str, Any], selection: dict[str, Any]) -> bool:
     if "and" in selection:
-        if not all(selection_matches(event, child) if isinstance(child, dict) else False for child in selection["and"]):
+        if not all(
+            selection_matches(event, child) if isinstance(child, dict) else False
+            for child in selection["and"]
+        ):
             return False
-        return all(selection_matches(event, child) for child in selection.get("or", [])) if selection.get("or") else True
+        return (
+            all(selection_matches(event, child) for child in selection.get("or", []))
+            if selection.get("or")
+            else True
+        )
     if "or" in selection:
         return any(selection_matches(event, child) for child in selection["or"])
-    return all(operator_matches(field_value(event, field), condition) for field, condition in selection.items())
+    return all(
+        operator_matches(field_value(event, field), condition)
+        for field, condition in selection.items()
+    )
 
 
 @dataclass(frozen=True)
@@ -208,15 +277,30 @@ def correlate(rule: Rule, events: list[Any], as_of: datetime | None = None) -> l
     selection = rule.detection["selection"]
     matching = [event for event in normalized if selection_matches(event, selection)]
     if as_of is None:
-        timestamps = [event["timestamp"] for event in matching if isinstance(event.get("timestamp"), datetime)]
+        timestamps = [
+            event["timestamp"] for event in matching if isinstance(event.get("timestamp"), datetime)
+        ]
         as_of = max(timestamps) if timestamps else datetime.now(timezone.utc)
     timeframe = parse_duration(rule.detection["timeframe"])
     lower = as_of - timeframe
-    window = [event for event in matching if isinstance(event.get("timestamp"), datetime)
-              and lower <= (event["timestamp"].replace(tzinfo=timezone.utc) if event["timestamp"].tzinfo is None else event["timestamp"].astimezone(timezone.utc)) <= as_of]
+    window = [
+        event
+        for event in matching
+        if isinstance(event.get("timestamp"), datetime)
+        and lower
+        <= (
+            event["timestamp"].replace(tzinfo=timezone.utc)
+            if event["timestamp"].tzinfo is None
+            else event["timestamp"].astimezone(timezone.utc)
+        )
+        <= as_of
+    ]
     groups: dict[tuple[tuple[str, str], ...], list[dict[str, Any]]] = {}
     for event in window:
-        context = {field: str(event.get(field) or "unknown") for field in rule.detection.get("group_by", [])}
+        context = {
+            field: str(event.get(field) or "unknown")
+            for field in rule.detection.get("group_by", [])
+        }
         key = tuple(sorted(context.items()))
         groups.setdefault(key, []).append(event)
     threshold = int(rule.detection.get("count", 1))
@@ -224,11 +308,17 @@ def correlate(rule: Rule, events: list[Any], as_of: datetime | None = None) -> l
     distinct_field = rule.detection.get("distinct_by")
     for context_items, grouped in groups.items():
         context = dict(context_items)
-        sample_count = len({event.get(distinct_field) for event in grouped}) if distinct_field else len(grouped)
+        sample_count = (
+            len({event.get(distinct_field) for event in grouped})
+            if distinct_field
+            else len(grouped)
+        )
         if sample_count < threshold:
             continue
         ids = tuple(sorted({int(event["id"]) for event in grouped if event.get("id") is not None}))
         timestamps = [event["timestamp"] for event in grouped]
         fingerprint = f"{rule.id}:{':'.join(f'{key}={value}' for key, value in context_items)}"
-        results.append(MatchGroup(fingerprint, rule.id, context, ids, min(timestamps), max(timestamps)))
+        results.append(
+            MatchGroup(fingerprint, rule.id, context, ids, min(timestamps), max(timestamps))
+        )
     return sorted(results, key=lambda match: match.fingerprint)

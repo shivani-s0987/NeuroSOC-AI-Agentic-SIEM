@@ -21,12 +21,15 @@ def pagination_params(
 
 
 def paginated(items: list, page: int, page_size: int, total: int) -> dict:
-    return {"items": items, "pagination": {
-        "page": page,
-        "page_size": page_size,
-        "total": total,
-        "pages": max(1, (total + page_size - 1) // page_size),
-    }}
+    return {
+        "items": items,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "pages": max(1, (total + page_size - 1) // page_size),
+        },
+    }
 
 
 def apply_sort(query, model, sort_by: str, allowed: set[str], sort_order: str, default: str = "id"):

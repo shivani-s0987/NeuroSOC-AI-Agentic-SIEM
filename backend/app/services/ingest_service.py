@@ -13,10 +13,25 @@ from sqlalchemy.orm import Session
 from app.models import Event
 
 CSV_FIELDS = {
-    "message", "timestamp", "source", "event_type", "severity", "host", "user",
-    "src_ip", "dst_ip", "process_name", "raw", "metadata",
+    "message",
+    "timestamp",
+    "source",
+    "event_type",
+    "severity",
+    "host",
+    "user",
+    "src_ip",
+    "dst_ip",
+    "process_name",
+    "raw",
+    "metadata",
 }
-CSV_ALIASES = {"username": "user", "ip": "src_ip", "type": "event_type", "payload_metadata": "metadata"}
+CSV_ALIASES = {
+    "username": "user",
+    "ip": "src_ip",
+    "type": "event_type",
+    "payload_metadata": "metadata",
+}
 
 
 def normalize_timestamp(value: Any) -> datetime:
@@ -44,7 +59,11 @@ def parse_line(line: str) -> dict[str, Any]:
             raise ValueError("JSON record must be an object")
         if not payload.get("message"):
             raise ValueError("message is required")
-        timestamp = normalize_timestamp(payload.get("timestamp")) if payload.get("timestamp") else datetime.now(timezone.utc)
+        timestamp = (
+            normalize_timestamp(payload.get("timestamp"))
+            if payload.get("timestamp")
+            else datetime.now(timezone.utc)
+        )
         return {
             "source": payload.get("source", "json"),
             "event_type": payload.get("event_type", "json"),
@@ -110,7 +129,9 @@ def parse_csv_row(row: dict[str, Any]) -> dict[str, Any]:
         normalized[name] = raw_value.strip() if isinstance(raw_value, str) else raw_value
     if not normalized.get("message"):
         raise ValueError("CSV message is required")
-    normalized["timestamp"] = normalize_timestamp(normalized["timestamp"] if normalized.get("timestamp") else datetime.now(timezone.utc))
+    normalized["timestamp"] = normalize_timestamp(
+        normalized["timestamp"] if normalized.get("timestamp") else datetime.now(timezone.utc)
+    )
     normalized["severity"] = normalized.get("severity", "info").lower()
     if normalized["severity"] not in {"info", "low", "medium", "high", "critical"}:
         raise ValueError("Invalid CSV severity")

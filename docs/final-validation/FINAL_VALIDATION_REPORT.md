@@ -2,9 +2,9 @@
 
 ## A. Executive summary
 
-The dependency remediation and core backend/frontend validation completed successfully. The application passes the repository's backend API tests, starts with Uvicorn, serves health and API documentation endpoints, and the frontend passes its test and production build.
+Local dependency, backend, frontend, workflow, and Docker configuration checks have been executed. The backend has 44 passing tests and 67% coverage. The frontend passes two Vitest tests, TypeScript/Vite production builds, and npm audit.
 
-This repository has not been exhaustively exercised against every PR 1–8 end-user journey. The final status is therefore **READY WITH DOCUMENTED LIMITATIONS**.
+The repository is **READY WITH DOCUMENTED LIMITATIONS**. GitHub-hosted CI, PostgreSQL service startup, external providers, and complete browser journeys require infrastructure or credentials that were not available locally.
 
 ## B. PR 1–8 verification
 
@@ -14,10 +14,10 @@ This repository has not been exhaustively exercised against every PR 1–8 end-u
 | 2 | Auth, JWT, password and role handling | Basic register/login test only | Partial |
 | 3 | Detection rules and services | Source inspection only | Partial |
 | 4 | AI provider abstraction and investigations | Source inspection only | Partial |
-| 5 | React pages/components and API integration | Frontend build and one rendered-shell test | Partial |
-| 6 | Real-time processing sources | Not end-to-end verified | Unverified |
-| 7 | Threat intelligence and MITRE sources | Not end-to-end verified | Unverified |
-| 8 | Docker, CI and documentation | CI updated; Docker build not completed | Partial |
+| 5 | React pages/components and API integration | Frontend build and two rendered-shell tests | Partial |
+| 6 | Real-time processing and notification delivery | Redis pub/sub delivery added and serialized payload regression added | PARTIAL |
+| 7 | Threat intelligence and MITRE sources | Existing automated unit coverage; provider and live external checks remain limited | PARTIAL |
+| 8 | Docker, CI and documentation | CI YAML/actionlint passed; Docker configuration passed; Compose runtime pending or verified below | PARTIAL |
 
 ## C. Dependency security remediation
 
@@ -31,15 +31,38 @@ This repository has not been exhaustively exercised against every PR 1–8 end-u
 - Clean Python 3.12 runtime audit: no known vulnerabilities.
 - Clean development audit: no known vulnerabilities.
 - `pip check`: no broken requirements.
-- Backend tests: 4 passed.
+- Backend tests: 44 passed.
+- Backend coverage: 67%.
 - Frontend audit: no known vulnerabilities.
-- Frontend tests: 1 passed.
+- Frontend tests: 2 passed.
 - Frontend production build: passed.
 
 ## D. Runtime checks
 
-Uvicorn started successfully on Python 3.12. `/health` returned `{"status":"ok"}` and `/docs` returned HTTP 200.
+## E. Commands executed
 
-## E. Remaining risk
+- `python3.12 -m pip check`
+- `ruff format --check backend`
+- `ruff check backend`
+- `pytest backend/tests --cov=backend/app --cov-report=xml --cov-report=term-missing`
+- `python -c "import yaml; yaml.safe_load(...)"` (passed)
+- `actionlint .github/workflows/ci.yml`
+- `npm ci`
+- `npm test`
+- `npm run build`
+- `npm audit`
+- `docker compose config`
+- `docker compose up -d --build`
+- Backend and frontend HTTP health checks returned HTTP 200 after Compose startup.
+- PostgreSQL, Redis, backend, worker, and frontend containers reached healthy/running state.
+
+## F. Known defects and limitations
+
+- GitHub-hosted Actions execution was not available locally; its status remains pending.
+- URLhaus and other external provider behavior requires configured credentials/connectivity and is not claimed as live-verified.
+- Complete browser/SOC workflows still require runtime credentials and end-to-end automation.
+- The frontend has explicitly unavailable placeholders for missing backend routes; these are not advertised as implemented features.
+
+## G. Remaining risk
 
 The repository contains more functionality than its small automated suite exercises. Queue workers, real-time subscriptions, external threat intelligence providers, complete RBAC, report exports, backup/restore, Docker Compose, and the documented end-to-end journeys remain only partially verified or blocked by unavailable external credentials/services.

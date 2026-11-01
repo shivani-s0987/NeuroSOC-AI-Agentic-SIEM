@@ -72,9 +72,18 @@ class Settings(BaseSettings):
                 raise ValueError("Production requires PostgreSQL; SQLite fallback is not allowed")
             if not self.database_url.startswith(("postgresql://", "postgresql+psycopg://")):
                 raise ValueError("Production DATABASE_URL must be PostgreSQL")
-            if "*" in self.cors_origins or "localhost" in self.cors_origins:
+            origins = {origin.strip().lower() for origin in self.cors_origins.split(",")}
+            loopback_origins = {
+                origin
+                for origin in origins
+                if origin.startswith(("http://localhost:", "http://127.0.0.1:"))
+            }
+            if "*" in self.cors_origins or (
+                "localhost" in self.cors_origins and origins != loopback_origins
+            ):
                 raise ValueError(
-                    "Production CORS_ORIGINS must not contain wildcard or localhost origins"
+                    "Production CORS_ORIGINS must not contain wildcard origins "
+                    "or non-loopback localhost origins"
                 )
             if (
                 "change-me" in self.jwt_secret.lower()

@@ -19,28 +19,41 @@ def match_event(db: Session, event: Event) -> list[IOCMatch]:
             normalized = normalize_ioc(value, ioc_type)
         except ValueError:
             continue
-        indicator = db.query(ThreatIntel).filter(
-            ThreatIntel.normalized_value == normalized,
-            ThreatIntel.active == 1,
-            ThreatIntel.revoked_at.is_(None),
-        ).filter((ThreatIntel.expires_at.is_(None)) | (ThreatIntel.expires_at > now)).first()
+        indicator = (
+            db.query(ThreatIntel)
+            .filter(
+                ThreatIntel.normalized_value == normalized,
+                ThreatIntel.active == 1,
+                ThreatIntel.revoked_at.is_(None),
+            )
+            .filter((ThreatIntel.expires_at.is_(None)) | (ThreatIntel.expires_at > now))
+            .first()
+        )
         if indicator is None:
             continue
-        already_matched = db.query(IOCMatch).filter(
-            IOCMatch.event_id == event.id,
-            IOCMatch.indicator_id == indicator.id,
-        ).first()
+        already_matched = (
+            db.query(IOCMatch)
+            .filter(
+                IOCMatch.event_id == event.id,
+                IOCMatch.indicator_id == indicator.id,
+            )
+            .first()
+        )
         if already_matched or indicator.id in {item.indicator_id for item in created}:
             continue
         key = (indicator.id, field)
         if key in seen:
             continue
         seen.add(key)
-        existing = db.query(IOCMatch).filter(
-            IOCMatch.event_id == event.id,
-            IOCMatch.indicator_id == indicator.id,
-            IOCMatch.matched_field == field,
-        ).first()
+        existing = (
+            db.query(IOCMatch)
+            .filter(
+                IOCMatch.event_id == event.id,
+                IOCMatch.indicator_id == indicator.id,
+                IOCMatch.matched_field == field,
+            )
+            .first()
+        )
         if existing:
             continue
         match = IOCMatch(
@@ -51,7 +64,10 @@ def match_event(db: Session, event: Event) -> list[IOCMatch]:
             matched_value=normalized,
             confidence=indicator.confidence,
             severity=indicator.severity,
-            provenance={"source": indicator.source, "indicator_provenance": indicator.provenance or {}},
+            provenance={
+                "source": indicator.source,
+                "indicator_provenance": indicator.provenance or {},
+            },
         )
         db.add(match)
         created.append(match)

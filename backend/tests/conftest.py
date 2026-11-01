@@ -14,6 +14,7 @@ def database_schema():
 @pytest.fixture(autouse=True)
 def clean_database(database_schema):
     from app.core.rate_limit import _buckets
+
     _buckets.clear()
     db = SessionLocal()
     for model in (

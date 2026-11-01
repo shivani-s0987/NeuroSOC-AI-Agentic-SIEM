@@ -16,7 +16,10 @@ def test_health() -> None:
 
 
 def register_login(username: str = "api-analyst") -> str:
-    client.post("/auth/register", json={"username": username, "email": f"{username}@example.com", "password": "Password123!"})
+    client.post(
+        "/auth/register",
+        json={"username": username, "email": f"{username}@example.com", "password": "Password123!"},
+    )
     db = SessionLocal()
     user = db.query(User).filter(User.username == username).first()
     user.role = "SOC_ANALYST"

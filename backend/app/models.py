@@ -47,7 +47,13 @@ class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    event_id = Column(
+        Integer,
+        ForeignKey("events.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     status = Column(String(50), default="pending", nullable=False, index=True)
     attempts = Column(Integer, default=0, nullable=False)
     max_attempts = Column(Integer, default=5, nullable=False)
@@ -127,7 +133,9 @@ class RuleVersion(Base):
     __tablename__ = "rule_versions"
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
-    rule_id = Column(String(120), ForeignKey("rules.rule_id", ondelete="CASCADE"), nullable=False, index=True)
+    rule_id = Column(
+        String(120), ForeignKey("rules.rule_id", ondelete="CASCADE"), nullable=False, index=True
+    )
     version = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
@@ -181,16 +189,29 @@ class ThreatIntel(Base):
     external_reference = Column(String(500), nullable=True)
     provenance = Column(JSON, default=dict)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
 
 class IOCMatch(Base):
     __tablename__ = "ioc_matches"
-    __table_args__ = (UniqueConstraint("event_id", "indicator_id", "matched_field", name="uq_ioc_event_match"), {"extend_existing": True})
+    __table_args__ = (
+        UniqueConstraint("event_id", "indicator_id", "matched_field", name="uq_ioc_event_match"),
+        {"extend_existing": True},
+    )
     id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
-    indicator_id = Column(Integer, ForeignKey("threat_intel.id", ondelete="CASCADE"), nullable=False, index=True)
-    alert_id = Column(Integer, ForeignKey("alerts.id", ondelete="SET NULL"), nullable=True, index=True)
+    event_id = Column(
+        Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    indicator_id = Column(
+        Integer, ForeignKey("threat_intel.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    alert_id = Column(
+        Integer, ForeignKey("alerts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     match_type = Column(String(80), nullable=False)
     matched_field = Column(String(120), nullable=False)
     matched_value = Column(String(255), nullable=False)
@@ -234,9 +255,15 @@ class Investigation(Base):
     __tablename__ = "investigations"
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
-    alert_id = Column(Integer, ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False, index=True)
-    case_id = Column(Integer, ForeignKey("cases.id", ondelete="SET NULL"), nullable=True, index=True)
-    initiated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    alert_id = Column(
+        Integer, ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    case_id = Column(
+        Integer, ForeignKey("cases.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    initiated_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     status = Column(String(50), nullable=False, default="PENDING", index=True)
     provider = Column(String(80), nullable=False, default="fallback")
     model = Column(String(120), nullable=True)
@@ -251,7 +278,13 @@ class InvestigationResult(Base):
     __tablename__ = "investigation_results"
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
-    investigation_id = Column(Integer, ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    investigation_id = Column(
+        Integer,
+        ForeignKey("investigations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
     result = Column(JSON, nullable=False, default=dict)
     evidence_references = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -261,8 +294,12 @@ class InvestigationFeedback(Base):
     __tablename__ = "investigation_feedback"
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
-    investigation_id = Column(Integer, ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    investigation_id = Column(
+        Integer, ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     category = Column(String(80), nullable=False)
     comments = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -272,7 +309,9 @@ class RefreshTokenSession(Base):
     __tablename__ = "refresh_token_sessions"
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     token_hash = Column(String(64), unique=True, nullable=False, index=True)
     family_id = Column(String(64), nullable=False, index=True)
     replaced_by_hash = Column(String(64), nullable=True)
@@ -286,7 +325,9 @@ class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     token_hash = Column(String(64), unique=True, nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False, index=True)
     used_at = Column(DateTime, nullable=True)
@@ -297,7 +338,9 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
-    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    actor_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     actor = Column(String(120), nullable=False)
     action = Column(String(200), nullable=False)
     target_type = Column(String(120), nullable=True)

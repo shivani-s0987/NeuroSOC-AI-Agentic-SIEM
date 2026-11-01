@@ -10,14 +10,21 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 @router.get("", response_model=None)
-def list_settings(db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.SETTINGS_MANAGE))) -> list[dict[str, object]]:
+def list_settings(
+    db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.SETTINGS_MANAGE))
+) -> list[dict[str, object]]:
     return [
         {"key": str(item.key), "value": str(item.value)} for item in db.query(Configuration).all()
     ]
 
 
 @router.post("", response_model=None)
-def set_setting(key: str, value: str, db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.SETTINGS_MANAGE))) -> dict[str, object]:
+def set_setting(
+    key: str,
+    value: str,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.SETTINGS_MANAGE)),
+) -> dict[str, object]:
     config = db.query(Configuration).filter(Configuration.key == key).first()
     if config is None:
         config = Configuration(key=key, value=value)

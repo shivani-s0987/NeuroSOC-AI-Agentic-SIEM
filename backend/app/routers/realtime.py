@@ -13,6 +13,7 @@ from app.models import Notification, ProcessingJob, User
 from app.security import decode_token
 from app.security import require_permission
 from app.services.realtime_service import utcnow
+from app.services.realtime_service import serialize_notification
 
 router = APIRouter(prefix="/realtime", tags=["realtime"])
 
@@ -32,8 +33,23 @@ class ConnectionManager:
             if not sockets:
                 self.connections.pop(user_id, None)
 
+    async def broadcast(self, payload: dict) -> None:
+        disconnected: list[WebSocket] = []
+        for user_sockets in list(self.connections.values()):
+            for websocket in list(user_sockets):
+                try:
+                    await websocket.send_json(payload)
+                except Exception:
+                    disconnected.append(websocket)
+        for websocket in disconnected:
+            for user_id, sockets in list(self.connections.items()):
+                sockets.discard(websocket)
+                if not sockets:
+                    self.connections.pop(user_id, None)
+
 
 manager = ConnectionManager()
+_redis_listener_task: asyncio.Task | None = None
 
 
 @router.get("/notifications")
@@ -47,21 +63,11 @@ def notifications(
     if after is not None:
         query = query.filter(Notification.timestamp > after)
     rows = query.limit(limit).all()
-    return [_notification_dict(row) for row in rows]
+    return [serialize_notification(row) for row in rows]
 
 
 def _notification_dict(notification: Notification) -> dict:
-    return {
-        "event_id": notification.notification_id,
-        "event_type": notification.event_type,
-        "schema_version": notification.schema_version,
-        "timestamp": notification.timestamp.isoformat(),
-        "resource": {
-            "type": notification.resource_type,
-            "id": notification.resource_id,
-        },
-        "data": notification.data or {},
-    }
+    return serialize_notification(notification)
 
 
 @router.websocket("/ws")
@@ -82,6 +88,7 @@ async def realtime_websocket(websocket: WebSocket, db: Session = Depends(get_db)
             return
         manager.connections.setdefault(user.id, set()).add(websocket)
         await websocket.send_json({"type": "connected", "timestamp": utcnow().isoformat()})
+        _ensure_redis_listener()
         while True:
             message = await websocket.receive_json()
             if not isinstance(message, dict):
@@ -101,6 +108,34 @@ async def realtime_websocket(websocket: WebSocket, db: Session = Depends(get_db)
     finally:
         for sockets in list(manager.connections.values()):
             sockets.discard(websocket)
+
+
+def _ensure_redis_listener() -> None:
+    global _redis_listener_task
+    if _redis_listener_task is None or _redis_listener_task.done():
+        _redis_listener_task = asyncio.create_task(_redis_notification_listener())
+
+
+async def _redis_notification_listener() -> None:
+    try:
+        import json
+        import redis.asyncio as redis_asyncio
+
+        from app.config import settings
+
+        redis_client = redis_asyncio.Redis.from_url(settings.redis_url)
+        async with redis_client.pubsub() as pubsub:
+            await pubsub.subscribe("neurosoc:notifications")
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message and message.get("data"):
+                    payload = json.loads(message["data"])
+                    await manager.broadcast(payload)
+                await asyncio.sleep(0.01)
+    except asyncio.CancelledError:
+        raise
+    except (ConnectionError, TimeoutError, OSError):
+        return
 
 
 @router.get("/health")

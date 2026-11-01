@@ -10,7 +10,9 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 @router.get("/summary")
-def summary(db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_READ))) -> dict[str, int]:
+def summary(
+    db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_READ))
+) -> dict[str, int]:
     return {
         "events": db.query(Event).count(),
         "alerts": db.query(Alert).count(),

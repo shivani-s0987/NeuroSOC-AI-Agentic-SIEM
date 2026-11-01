@@ -43,8 +43,13 @@ def test_event_ioc_match_is_idempotent():
             active=1,
         )
         db.add(indicator)
-        event = Event(message="connection from 198.51.100.10", raw="198.51.100.10",
-                      src_ip="198.51.100.10", source="test", event_type="network")
+        event = Event(
+            message="connection from 198.51.100.10",
+            raw="198.51.100.10",
+            src_ip="198.51.100.10",
+            source="test",
+            event_type="network",
+        )
         db.add(event)
         db.commit()
         db.refresh(event)
@@ -67,6 +72,7 @@ def test_revoked_and_expired_indicators_do_not_match():
     db = SessionLocal()
     try:
         from datetime import datetime, timedelta, timezone
+
         indicator = ThreatIntel(
             indicator="203.0.113.2",
             normalized_value="203.0.113.2",
@@ -80,7 +86,9 @@ def test_revoked_and_expired_indicators_do_not_match():
             expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
         )
         db.add(indicator)
-        event = Event(message="203.0.113.2", src_ip="203.0.113.2", source="test", event_type="network")
+        event = Event(
+            message="203.0.113.2", src_ip="203.0.113.2", source="test", event_type="network"
+        )
         db.add(event)
         db.commit()
         assert match_event(db, event) == []

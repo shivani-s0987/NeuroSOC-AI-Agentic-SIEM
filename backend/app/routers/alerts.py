@@ -14,7 +14,15 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
 @router.get("", response_model=Paginated[AlertOut])
-def list_alerts(db: Session = Depends(get_db), paging: dict = Depends(pagination_params), severity: str | None = Query(None), status: str | None = Query(None), source: str | None = Query(None), start_time: datetime | None = None, end_time: datetime | None = None):
+def list_alerts(
+    db: Session = Depends(get_db),
+    paging: dict = Depends(pagination_params),
+    severity: str | None = Query(None),
+    status: str | None = Query(None),
+    source: str | None = Query(None),
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+):
     allowed = {"id", "created_at", "severity", "status", "source"}
     if paging["sort_by"] not in allowed:
         raise HTTPException(status_code=422, detail=f"sort_by must be one of: {sorted(allowed)}")
@@ -29,11 +37,21 @@ def list_alerts(db: Session = Depends(get_db), paging: dict = Depends(pagination
     total = query.count()
     query = apply_sort(query, Alert, paging["sort_by"], allowed, paging["sort_order"], "created_at")
     offset = (paging["page"] - 1) * paging["page_size"]
-    return paginated(query.offset(offset).limit(paging["page_size"]).all(), paging["page"], paging["page_size"], total)
+    return paginated(
+        query.offset(offset).limit(paging["page_size"]).all(),
+        paging["page"],
+        paging["page_size"],
+        total,
+    )
 
 
 @router.post("", response_model=AlertOut)
-def create_alert(title: str, severity: str = "medium", db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.ALERTS_MANAGE))) -> Alert:
+def create_alert(
+    title: str,
+    severity: str = "medium",
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.ALERTS_MANAGE)),
+) -> Alert:
     alert = Alert(title=title, severity=severity, summary="AI-assisted alert explanation generated")
     db.add(alert)
     db.commit()
