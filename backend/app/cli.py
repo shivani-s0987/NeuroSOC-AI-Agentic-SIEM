@@ -5,7 +5,7 @@ import json
 import os
 import shutil
 import sqlite3
-import subprocess
+import subprocess  # nosec B404
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -92,11 +92,13 @@ def backup(output: str | None = None) -> None:
         with sqlite3.connect(source) as source_db, sqlite3.connect(destination) as backup_db:
             source_db.backup(backup_db)
     else:
-        if shutil.which("pg_dump") is None:
+        pg_dump = shutil.which("pg_dump")
+        if pg_dump is None:
             raise typer.BadParameter("pg_dump is required for PostgreSQL backups")
-        result = subprocess.run(
+        # The allowlisted executable is resolved to an absolute path and all arguments are fixed.
+        result = subprocess.run(  # nosec B603
             [
-                "pg_dump",
+                pg_dump,
                 "--format=custom",
                 "--no-password",
                 "--file",
@@ -149,11 +151,13 @@ def restore(
         if hashlib.sha256(source_path.read_bytes()).hexdigest() != metadata.get("sha256"):
             raise typer.BadParameter("Backup integrity check failed: SHA-256 mismatch")
     if not settings.database_url.startswith("sqlite"):
-        if shutil.which("pg_restore") is None:
+        pg_restore = shutil.which("pg_restore")
+        if pg_restore is None:
             raise typer.BadParameter("pg_restore is required for PostgreSQL restores")
-        result = subprocess.run(
+        # The allowlisted executable is resolved to an absolute path and all arguments are fixed.
+        result = subprocess.run(  # nosec B603
             [
-                "pg_restore",
+                pg_restore,
                 "--no-password",
                 "--clean",
                 "--if-exists",
