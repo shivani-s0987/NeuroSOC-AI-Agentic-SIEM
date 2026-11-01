@@ -2,29 +2,30 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
-
+import yaml
 from sqlalchemy.orm import Session
 
-from app.detection_engine import correlate, load_yaml, parse_duration
+from app.detection_engine import (
+    correlate,
+    load_builtin_rules,
+    parse_duration,
+    parse_rule_yaml,
+)
 from app.models import Alert, Detection, Event, Rule
 from app.services.realtime_service import publish_notification
-
-RULE_DIRECTORY = Path(__file__).resolve().parent.parent / "detection_rules"
 
 
 def load_rules(db: Session) -> list[Rule]:
     loaded: list[Rule] = []
-    for path in sorted(RULE_DIRECTORY.glob("*.yml")):
+    for rule_id, parsed in load_builtin_rules().items():
         try:
-            parsed = load_yaml(path.name)
             rule = db.query(Rule).filter(Rule.rule_id == parsed.id).first()
             if rule is None:
                 rule = Rule(
                     rule_id=parsed.id,
                     name=parsed.name,
                     description=parsed.description,
-                    content=path.read_text(encoding="utf-8"),
+                    content=yaml.safe_dump(parsed.model_dump(mode="json"), sort_keys=False),
                     severity=parsed.severity,
                     version=parsed.version,
                     enabled=int(parsed.enabled),
@@ -33,7 +34,7 @@ def load_rules(db: Session) -> list[Rule]:
             loaded.append(rule)
         except Exception as exc:
             logging.getLogger("neurosoc.detection").error(
-                "invalid rule path=%s error=%s", path.name, exc
+                "built-in rule id=%s synchronization_failed=%s", rule_id, exc
             )
     db.commit()
     return loaded
@@ -42,9 +43,11 @@ def load_rules(db: Session) -> list[Rule]:
 def run_detections(db: Session, as_of: datetime | None = None) -> list[Detection]:
     load_rules(db)
     detections: list[Detection] = []
-    for path in sorted(RULE_DIRECTORY.glob("*.yml")):
+    for stored_rule in db.query(Rule).all():
         try:
-            rule = load_yaml(path.name)
+            rule = parse_rule_yaml(stored_rule.content)
+            if rule.id != stored_rule.rule_id:
+                raise ValueError("stored rule ID does not match database record")
             if not rule.enabled:
                 continue
             timeframe = parse_duration(rule.detection["timeframe"])
@@ -116,7 +119,7 @@ def run_detections(db: Session, as_of: datetime | None = None) -> list[Detection
                 detections.append(detection)
         except Exception as exc:
             logging.getLogger("neurosoc.detection").error(
-                "rule=%s execution_failed=%s", path.stem, exc
+                "rule=%s execution_failed=%s", stored_rule.rule_id, exc
             )
     db.commit()
     return detections

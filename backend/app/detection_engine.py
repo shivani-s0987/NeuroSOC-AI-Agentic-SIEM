@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
-from urllib.parse import unquote
+from typing import Any, Mapping
+from types import MappingProxyType
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -141,25 +142,28 @@ def validate_selection(selection: dict[str, Any], depth: int = 0) -> None:
 DETECTION_RULE_DIRECTORY = Path(__file__).resolve().parent / "detection_rules"
 
 
-def load_yaml(path: Path | str, base_directory: Path | str = DETECTION_RULE_DIRECTORY) -> Rule:
-    base = Path(base_directory).resolve()
-    raw_path = str(path)
-    raw_path = unquote(unquote(raw_path))
-    candidate = Path(raw_path)
-    if candidate.is_absolute() or "\\" in raw_path or ".." in candidate.parts:
-        raise ValueError("rule path is not allowed")
-    resolved = (base / candidate).resolve()
-    if not resolved.is_relative_to(base):
-        raise ValueError("rule path is outside the permitted directory")
-    if not resolved.is_file():
-        raise ValueError("rule file does not exist")
-    if resolved.suffix.lower() != ".yml":
-        raise ValueError("rule file must use the .yml extension")
-    with resolved.open("r", encoding="utf-8") as handle:
-        data = yaml.safe_load(handle)
+def parse_rule_yaml(content: str) -> Rule:
+    if not isinstance(content, str):
+        raise ValueError("rule content must be text")
+    data = yaml.safe_load(content)
     if not isinstance(data, dict):
         raise ValueError("rule must be a YAML mapping")
     return Rule.model_validate(data)
+
+
+def load_builtin_rules() -> Mapping[str, Rule]:
+    rules: dict[str, Rule] = {}
+    for path in sorted(DETECTION_RULE_DIRECTORY.glob("*.yml")):
+        try:
+            rule = parse_rule_yaml(path.read_text(encoding="utf-8"))
+            if rule.id in rules:
+                raise ValueError(f"duplicate built-in rule ID: {rule.id}")
+            rules[rule.id] = rule
+        except (OSError, yaml.YAMLError, ValueError) as exc:
+            logging.getLogger("neurosoc.detection").error(
+                "invalid built-in rule %s: %s", path.name, exc
+            )
+    return MappingProxyType(rules)
 
 
 def normalize_event(event: Any) -> dict[str, Any]:

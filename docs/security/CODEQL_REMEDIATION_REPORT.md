@@ -11,9 +11,18 @@ GitHub verification is pending: local validation passed, but this report does no
 - Severity: High
 - Original location: `backend/app/detection_engine.py:141`
 - Provenance: pre-existing code surfaced by the larger pull request diff.
-- Root cause: `load_yaml()` opened a caller-provided path directly.
-- Remediation: paths are decoded for traversal inspection, must be relative, must not contain backslash or `..`, are resolved beneath the detection-rule directory, and must remain beneath that directory after canonicalization. Missing files, absolute paths, and symlink escapes are rejected.
-- Caller impact: the rules API and detection service now load rule filenames rather than arbitrary API paths.
+- Root cause: `load_yaml()` accepted caller-controlled filenames and converted them into filesystem paths. Canonicalization patched the symptom but preserved untrusted data-flow into path expressions and CodeQL continued to model it.
+- Remediation: the generic path-based loader was removed. YAML is parsed only with `parse_rule_yaml(content)`. Built-in files are enumerated exclusively from the fixed application directory, parsed, keyed by validated ID, and exposed through an immutable mapping. Custom rules and execution content are database-backed.
+- Caller impact: rule creation writes no files, dry-run queries the database, and detection execution parses database content. Rule IDs are never joined into filesystem paths.
+
+## Architecture
+
+- `backend/app/detection_engine.py` contains the content-only YAML parser and trusted built-in registry.
+- Built-in rule synchronization occurs through database records only when an ID is absent, so custom rules are not overwritten.
+- Custom rule creation validates YAML, stores `Rule.content`, and adds a `RuleVersion` in the same transaction.
+- The dry-run endpoint parameterizes its ORM lookup, rejects malformed or mismatched stored content, and never performs filesystem access.
+- Detection execution enumerates database rules and isolates malformed individual rules so one invalid record cannot abort the complete job.
+- Request-derived rule IDs have no role in filesystem operations.
 
 ### Weak password hashing in production
 
@@ -45,8 +54,8 @@ GitHub verification is pending: local validation passed, but this report does no
 - Password storage and verification remain Argon2id through `argon2.PasswordHasher`.
 - Login upgrade behavior for supported Argon2 parameters remains intact.
 - Legacy SHA-256 password hashes cannot authenticate and cannot create new Argon2 hashes without the legitimate password reset flow.
-- Detection rule files must be regular `.yml` files under the application-controlled directory.
+- Detection rule files are trusted read-only built-in assets under the application-controlled directory. Custom YAML never creates a file.
 
 ## Validation pending
 
-Run complete local checks documented in the final response. Hosted CodeQL must be rerun for `Upgradable-Features` on the resulting commit.
+- Local checks covering the new architecture pass; hosted CodeQL must be rerun for `Upgradable-Features` on the resulting commit.

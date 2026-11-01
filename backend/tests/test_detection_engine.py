@@ -3,64 +3,31 @@ from datetime import datetime, timedelta, timezone
 from app.detection_engine import (
     correlate,
     DETECTION_RULE_DIRECTORY,
-    load_yaml,
+    load_builtin_rules,
     normalize_event,
     operator_matches,
     parse_duration,
     selection_matches,
+    parse_rule_yaml,
 )
 
 BASE = datetime(2026, 10, 31, 12, 0, tzinfo=timezone.utc)
 
 
-def test_rule_path_boundaries(tmp_path):
-    valid = tmp_path / "valid rule.yml"
-    valid.write_text(
+def test_rule_content_parsing(tmp_path):
+    valid = (
         "id: valid\nname: Valid\ndescription: Valid\nseverity: medium\n"
         "enabled: true\nversion: 1\ncategory: test\ndetection:\n  selection:\n"
         "    event_type: test\n  timeframe: 5m\n  condition: selection\n"
         "response:\n  recommended_action: Review\nmitre:\n  tactics: []\n  techniques: []\n"
-        "correlation:\n  group_by: []\n  deduplication_window: 5m\n",
-        encoding="utf-8",
+        "correlation:\n  group_by: []\n  deduplication_window: 5m\n"
     )
-    assert load_yaml("valid rule.yml", tmp_path).id == "valid"
-
-    outside = tmp_path.parent / "outside.yml"
-    outside.write_text(valid.read_text(encoding="utf-8"), encoding="utf-8")
-    rejected = [
-        "../outside.yml",
-        "nested/../../outside.yml",
-        str(outside),
-        "%2e%2e/outside.yml",
-        "..\\outside.yml",
-    ]
-    for candidate in rejected:
-        try:
-            load_yaml(candidate, tmp_path)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError(f"path was accepted: {candidate}")
-
+    assert parse_rule_yaml(valid).id == "valid"
     try:
-        load_yaml("missing.yml", tmp_path)
-    except ValueError as exc:
-        assert "does not exist" in str(exc)
-    else:
-        raise AssertionError("missing rule was accepted")
-
-    escape = tmp_path / "escape.yml"
-    try:
-        escape.symlink_to(outside)
-    except OSError:
+        parse_rule_yaml("[]")
+        raise AssertionError("non-mapping YAML was accepted")
+    except ValueError:
         pass
-    else:
-        try:
-            load_yaml("escape.yml", tmp_path)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError("symlink escape was accepted")
 
 
 def test_condition_operators():
@@ -82,7 +49,7 @@ def test_selection_missing_null_and_regex():
 
 
 def test_ssh_rule_reaches_threshold_on_event_boundary():
-    rule = load_yaml("ssh_bruteforce.yml")
+    rule = load_builtin_rules()["ssh_bruteforce"]
     events = []
     for index in range(10):
         timestamp = BASE - timedelta(minutes=5) + timedelta(seconds=index)
@@ -102,7 +69,7 @@ def test_ssh_rule_reaches_threshold_on_event_boundary():
 
 
 def test_threshold_grouping_and_out_of_window_events():
-    rule = load_yaml("ssh_bruteforce.yml")
+    rule = load_builtin_rules()["ssh_bruteforce"]
     events = [
         {
             "id": 1,
@@ -123,7 +90,7 @@ def test_threshold_grouping_and_out_of_window_events():
 
 
 def test_password_spraying_counts_distinct_users():
-    rule = load_yaml("password_spraying.yml")
+    rule = load_builtin_rules()["password_spraying"]
     events = [
         {
             "id": index + 1,
@@ -139,7 +106,7 @@ def test_password_spraying_counts_distinct_users():
 
 
 def test_port_scan_counts_distinct_ports():
-    rule = load_yaml("port_scan.yml")
+    rule = load_builtin_rules()["port_scan"]
     events = [
         {
             "id": index + 1,
@@ -154,7 +121,7 @@ def test_port_scan_counts_distinct_ports():
 
 
 def test_suspicious_powershell_requires_combined_indicators():
-    rule = load_yaml("suspicious_powershell.yml")
+    rule = load_builtin_rules()["suspicious_powershell"]
     safe = {
         "id": 1,
         "timestamp": BASE,
@@ -170,7 +137,8 @@ def test_suspicious_powershell_requires_combined_indicators():
 
 def test_rule_library_has_ten_unique_valid_rules():
     paths = sorted(DETECTION_RULE_DIRECTORY.glob("*.yml"))
-    ids = [load_yaml(path.name).id for path in paths]
+    registry = load_builtin_rules()
+    ids = list(registry)
     assert len(paths) >= 10
     assert len(ids) == len(set(ids))
 

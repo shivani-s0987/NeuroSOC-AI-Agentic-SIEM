@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 import yaml
-from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,7 +9,7 @@ from app.services.detection_service import load_rules, run_detections
 from app.core.pagination import apply_sort, paginated, pagination_params
 from app.core.permissions import Permission
 from app.security import require_permission
-from app.detection_engine import Rule as DetectionRule, correlate
+from app.detection_engine import Rule as DetectionRule, correlate, parse_rule_yaml
 
 router = APIRouter(prefix="/detections", tags=["detections"])
 
@@ -116,10 +115,11 @@ def create_rule(
     db.add(rule)
     db.flush()
     db.add(RuleVersion(rule_id=parsed.id, version=parsed.version, content=content))
-    Path(__file__).resolve().parent.parent.joinpath(
-        "detection_rules", f"{parsed.id}.yml"
-    ).write_text(content, encoding="utf-8")
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return {"id": parsed.id, "version": parsed.version}
 
 
@@ -182,18 +182,20 @@ def disable_rule(
 
 @router.post("/rules/{rule_id}/test")
 def test_rule(
-    rule_id: str, events: list[dict], _actor=Depends(require_permission(Permission.DETECTIONS_READ))
+    rule_id: str,
+    events: list[dict],
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.DETECTIONS_READ)),
 ) -> dict[str, object]:
-    rule = None
+    stored_rule = db.query(Rule).filter(Rule.rule_id == rule_id).first()
+    if stored_rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found")
     try:
-        from app.services.detection_service import RULE_DIRECTORY
-
-        path = RULE_DIRECTORY / f"{rule_id}.yml"
-        from app.detection_engine import load_yaml
-
-        rule = load_yaml(path)
-    except (FileNotFoundError, ValueError) as exc:
-        raise HTTPException(status_code=404, detail=f"Rule unavailable or invalid: {exc}") from exc
+        rule = parse_rule_yaml(stored_rule.content)
+    except (ValueError, yaml.YAMLError) as exc:
+        raise HTTPException(status_code=422, detail="Stored rule content is invalid") from exc
+    if rule.id != stored_rule.rule_id:
+        raise HTTPException(status_code=422, detail="Stored rule ID does not match")
     matches = correlate(rule, events)
     return {
         "rule_id": rule_id,
