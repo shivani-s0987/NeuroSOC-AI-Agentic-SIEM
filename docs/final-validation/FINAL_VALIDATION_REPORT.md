@@ -55,6 +55,9 @@ The repository is **READY WITH DOCUMENTED LIMITATIONS**. GitHub-hosted CI, Postg
 - `docker compose up -d --build`
 - Backend and frontend HTTP health checks returned HTTP 200 after Compose startup.
 - PostgreSQL, Redis, backend, worker, and frontend containers reached healthy/running state.
+- Isolated SQLite migration reached Alembic head `c6d8a2f4e103`.
+- PostgreSQL registration and login smoke tests returned HTTP 200.
+- Celery worker connected to Redis and reported ready.
 
 ## F. Known defects and limitations
 
