@@ -12,7 +12,7 @@ vi.mock("./api", async () => {
       get: vi.fn().mockRejectedValue(new Error("network unavailable in unit test")),
       post: vi.fn(),
       patch: vi.fn(),
-      interceptors: { request: { use: vi.fn() } },
+      interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } },
     },
   };
 });

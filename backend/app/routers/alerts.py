@@ -13,6 +13,28 @@ from app.security import require_permission
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
+@router.patch("/{alert_id}", response_model=AlertOut)
+def update_alert(
+    alert_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_permission(Permission.ALERTS_MANAGE)),
+) -> Alert:
+    alert = db.get(Alert, alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    allowed_statuses = {"open", "investigating", "acknowledged", "resolved", "closed"}
+    if "status" in payload:
+        status = str(payload["status"]).lower()
+        if status not in allowed_statuses:
+            raise HTTPException(status_code=422, detail="Invalid alert status")
+        alert.status = status
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+    return alert
+
+
 @router.get("", response_model=Paginated[AlertOut])
 def list_alerts(
     db: Session = Depends(get_db),
