@@ -1,0 +1,17 @@
+id: anomalous_login
+name: Anomalous Login Context Detection
+description: Login where the event supplies distinct locations or anomalous-context evidence.
+enabled: true
+severity: medium
+category: authentication
+tags: [anomalous-login]
+logsource: {category: authentication}
+detection:
+  selection: {event_type: login, anomalous_context: {operator: equals, value: true}}
+  condition: selection
+  timeframe: 30m
+  count: 1
+  group_by: [username]
+mitre: {tactics: [TA0001], techniques: [T1078]}
+response: {create_alert: true, recommended_action: Validate location and recent device history; insufficient evidence alone is not proof of travel.}
+version: 1

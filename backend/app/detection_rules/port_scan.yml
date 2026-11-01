@@ -1,0 +1,18 @@
+id: port_scan
+name: Port Scan Detection
+description: One source connects to multiple destination ports in a short window.
+enabled: true
+severity: high
+category: network
+tags: [port-scan]
+logsource: {category: network}
+detection:
+  selection: {event_type: connection_attempt}
+  condition: selection
+  timeframe: 5m
+  count: 5
+  distinct_by: destination_port
+  group_by: [source_ip]
+mitre: {tactics: [TA0007], techniques: [T1046]}
+response: {create_alert: true, recommended_action: Identify the source host and validate whether scanning was authorized.}
+version: 1
