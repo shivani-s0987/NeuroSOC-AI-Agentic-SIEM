@@ -1,4 +1,5 @@
 import hashlib
+
 from fastapi.testclient import TestClient
 
 from app.database import SessionLocal
@@ -26,8 +27,9 @@ def test_password_hashing_and_legacy_migration():
     assert encoded.startswith("$argon2id$")
     assert verify_password("Password123!", encoded)
     assert not verify_password("incorrect-password", encoded)
-    legacy = hashlib.sha256("LegacyPassword123!".encode()).hexdigest()
-    assert verify_password("LegacyPassword123!", legacy)
+    legacy = "0" * 64
+    assert not verify_password("LegacyPassword123!", legacy)
+    assert needs_rehash(legacy)
     assert needs_rehash(legacy)
 
 

@@ -17,7 +17,7 @@ def load_rules(db: Session) -> list[Rule]:
     loaded: list[Rule] = []
     for path in sorted(RULE_DIRECTORY.glob("*.yml")):
         try:
-            parsed = load_yaml(path)
+            parsed = load_yaml(path.name)
             rule = db.query(Rule).filter(Rule.rule_id == parsed.id).first()
             if rule is None:
                 rule = Rule(
@@ -44,7 +44,7 @@ def run_detections(db: Session, as_of: datetime | None = None) -> list[Detection
     detections: list[Detection] = []
     for path in sorted(RULE_DIRECTORY.glob("*.yml")):
         try:
-            rule = load_yaml(path)
+            rule = load_yaml(path.name)
             if not rule.enabled:
                 continue
             timeframe = parse_duration(rule.detection["timeframe"])

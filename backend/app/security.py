@@ -1,4 +1,3 @@
-import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -29,8 +28,6 @@ def verify_password(password: str, hashed: str) -> bool:
             return _passwords.verify(hashed, password)
         except VerifyMismatchError:
             return False
-    if len(hashed) == 64:
-        return hashlib.sha256(password.encode()).hexdigest() == hashed
     return False
 
 

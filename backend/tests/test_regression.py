@@ -1,4 +1,3 @@
-import hashlib
 import tempfile
 from pathlib import Path
 
@@ -7,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.database import SessionLocal
 from app.main import app
 from app.models import Detection, Event, Rule, User
-from app.security import hash_password, verify_password
+from app.security import hash_password, needs_rehash, verify_password
 from app.services.detection_service import run_detections
 from app.services.ingest_service import ingest_file, ingest_file_report, normalize_timestamp
 
@@ -30,13 +29,14 @@ def analyst_headers(username: str = "regression-analyst") -> dict[str, str]:
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
-def test_argon2_hash_and_sha256_legacy_verification():
+def test_argon2_hash_and_legacy_hash_requires_reset():
     password = "TestPassword123!"
     encoded = hash_password(password)
     assert encoded.startswith("$argon2")
     assert verify_password(password, encoded)
-    legacy = hashlib.sha256(password.encode()).hexdigest()
-    assert verify_password(password, legacy)
+    legacy = "0" * 64
+    assert not verify_password(password, legacy)
+    assert needs_rehash(legacy)
 
 
 def test_event_metadata_round_trip():
