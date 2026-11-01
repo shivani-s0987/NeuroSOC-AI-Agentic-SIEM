@@ -1,0 +1,18 @@
+id: account_enumeration
+name: Account Enumeration Detection
+description: Multiple authentication failures likely used to enumerate accounts.
+enabled: true
+severity: medium
+category: authentication
+tags: [enumeration]
+logsource: {category: authentication}
+detection:
+  selection: {result: {operator: in, value: [unknown_user, invalid_user, failure]}}
+  condition: selection
+  timeframe: 10m
+  count: 5
+  distinct_by: username
+  group_by: [source_ip]
+mitre: {tactics: [TA0001, TA0006], techniques: [T1087, T1110]}
+response: {create_alert: true, recommended_action: Review authentication telemetry for a broader validation campaign.}
+version: 1

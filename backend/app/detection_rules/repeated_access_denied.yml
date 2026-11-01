@@ -1,0 +1,17 @@
+id: repeated_access_denied
+name: Repeated Access Denied Detection
+description: Concentrated authorization failures for protected resources.
+enabled: true
+severity: medium
+category: authorization
+tags: [access-denied]
+logsource: {category: authorization}
+detection:
+  selection: {result: {operator: equals, value: access_denied}}
+  condition: selection
+  timeframe: 15m
+  count: 5
+  group_by: [username, host]
+mitre: {tactics: [TA0007], techniques: [T1005]}
+response: {create_alert: true, recommended_action: Validate user entitlement and inspect resource access history.}
+version: 1

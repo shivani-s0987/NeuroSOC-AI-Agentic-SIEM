@@ -1,0 +1,21 @@
+id: privilege_escalation
+name: Privilege Escalation Detection
+description: Structured administrative privilege change or unauthorized sudo activity.
+enabled: true
+severity: critical
+category: privilege
+tags: [privilege-escalation]
+logsource: {category: process}
+detection:
+  selection:
+    and:
+      - event_type: {operator: equals, value: privilege_change}
+      - result: {operator: equals, value: success}
+      - action: {operator: in, value: [sudo, admin_grant, role_change]}
+  condition: selection
+  timeframe: 1h
+  count: 1
+  group_by: [host]
+mitre: {tactics: [TA0004], techniques: [T1548]}
+response: {create_alert: true, recommended_action: Verify change authorization and identify the initiating user.}
+version: 1

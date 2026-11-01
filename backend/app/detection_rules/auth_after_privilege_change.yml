@@ -1,0 +1,17 @@
+id: auth_after_privilege_change
+name: Authentication After Privilege Change Detection
+description: Structured authentication following a privilege change when correlation data is available.
+enabled: true
+severity: high
+category: identity
+tags: [privilege-change, authentication]
+logsource: {category: identity}
+detection:
+  selection: {event_type: privileged_authentication_success}
+  condition: selection
+  timeframe: 30m
+  count: 1
+  group_by: [username]
+mitre: {tactics: [TA0004], techniques: [T1078]}
+response: {create_alert: true, recommended_action: Correlate with the prior privilege change and verify authorization.}
+version: 1

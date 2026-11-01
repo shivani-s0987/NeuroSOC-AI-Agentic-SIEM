@@ -16,6 +16,8 @@ def create_case(
 
 
 def add_note(db: Session, case_id: int, author: str, content: str) -> CaseNote:
+    if db.query(Case).filter(Case.id == case_id).first() is None:
+        raise ValueError("Case not found")
     note = CaseNote(case_id=case_id, author=author, content=content)
     db.add(note)
     db.commit()

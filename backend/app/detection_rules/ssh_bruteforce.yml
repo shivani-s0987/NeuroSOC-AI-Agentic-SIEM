@@ -1,0 +1,17 @@
+id: ssh_bruteforce
+name: SSH Brute Force Detection
+description: Repeated failed SSH logins from one source IP.
+enabled: true
+severity: high
+category: authentication
+tags: [brute-force, ssh]
+logsource: {product: linux, service: ssh}
+detection:
+  selection: {event_type: authentication_failure, source: ssh}
+  condition: selection
+  timeframe: 5m
+  count: 10
+  group_by: [source_ip]
+mitre: {tactics: [TA0006], techniques: [T1110]}
+response: {create_alert: true, recommended_action: Confirm source ownership and investigate the target accounts.}
+version: 1
