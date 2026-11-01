@@ -16,6 +16,7 @@ from app.database import SessionLocal
 from app.models import Event
 from app.services.detection_service import run_detections
 from app.services.realtime_service import publish_notification, utcnow
+from app.services.ioc_matching_service import match_event
 
 logger = logging.getLogger("neurosoc.worker")
 _closing = False
@@ -40,6 +41,7 @@ def process_event(event_id: int) -> dict:
         db.commit()
 
         run_detections(db)
+        match_event(db, event)
         event = db.get(Event, event_id)
         event.processing_status = "processed"
         event.processed_at = utcnow()

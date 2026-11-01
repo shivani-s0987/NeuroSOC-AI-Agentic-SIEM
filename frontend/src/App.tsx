@@ -73,10 +73,38 @@ function Alerts() {
 }
 
 function Generic({ title, description, endpoint, fields }: { title: string; description: string; endpoint: string; fields: string[] }) {
+  if (title === "Threat Intelligence") return <ThreatIntelligence />;
+  if (title === "MITRE ATT&CK") return <MitreAttack />;
   const [rows, setRows] = useState<Record<string, unknown>[]>();
   const [error, setError] = useState("");
   useEffect(() => { setRows(undefined); list<Record<string, unknown>>(endpoint).then(setRows).catch(() => setError(`Unable to load ${title.toLowerCase()}.`)); }, [endpoint, title]);
   return <><Header title={title} description={description} /><State loading={!rows && !error} error={error || undefined} empty={rows?.length === 0}><div className="space-y-3">{rows?.map((row, index) => <article key={String(row.id ?? row.rule_id ?? row.key ?? index)} className="rounded-xl border border-slate-800 bg-slate-900 p-4">{fields.map((field) => <div key={field} className="mb-1 text-sm"><span className="mr-2 text-slate-500">{field}:</span>{typeof row[field] === "object" ? JSON.stringify(row[field]) : String(row[field] ?? "—")}</div>)}</article>)}</div></State></>;
+}
+
+function ThreatIntelligence() {
+  const [rows, setRows] = useState<Record<string, unknown>[]>();
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    setRows(undefined);
+    api.get<{ items: Record<string, unknown>[] }>("/threat-intelligence/indicators", { params: { q: query || undefined, page_size: 100 } })
+      .then(({ data }) => setRows(data.items))
+      .catch(() => setError("Unable to load threat indicators."));
+  }, [query]);
+  return <><Header title="Threat Intelligence" description="Indicators, provenance, and IOC match evidence." /><div className="mb-4 flex gap-3"><input aria-label="Search indicators" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search indicator..." className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" /></div><State loading={!rows && !error} error={error || undefined} empty={rows?.length === 0}><div className="space-y-3">{rows?.map((row) => <article key={String(row.id)} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="flex flex-wrap items-center gap-3"><strong>{String(row.value)}</strong>  <span className="rounded-full bg-slate-800 px-2 py-1 text-xs">{String(row.type)}</span><Severity value={String(row.severity)} /><span className="text-sm text-slate-400">{String(row.confidence)}% confidence · {String(row.source)}</span></div>{Boolean(row.revoked) || Boolean(row.expired) ? <p className="mt-2 text-sm text-amber-300">{row.revoked ? "Revoked" : "Expired"}</p> : null}</article>)}</div></State></>;
+}
+
+function MitreAttack() {
+  const [rows, setRows] = useState<Record<string, unknown>[]>();
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    setRows(undefined);
+    api.get<{ items: Record<string, unknown>[] }>("/mitre/techniques", { params: { q: query || undefined } })
+      .then(({ data }) => setRows(data.items))
+      .catch(() => setError("Unable to load MITRE ATT&CK techniques."));
+  }, [query]);
+  return <><Header title="MITRE ATT&CK" description="Imported ATT&CK techniques and detection-rule coverage." /><input aria-label="Search ATT&CK techniques" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search techniques..." className="mb-4 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" /><State loading={!rows && !error} error={error || undefined} empty={rows?.length === 0}><div className="space-y-3">{rows?.map((row) => <article key={String(row.id)} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><strong>{String(row.technique_id)} · {String(row.name)}</strong>  {Boolean(row.revoked) && <span className="ml-2 rounded-full bg-amber-900 px-2 py-1 text-xs">Revoked</span>}{Boolean(row.deprecated) && <span className="ml-2 rounded-full bg-amber-900 px-2 py-1 text-xs">Deprecated</span>}<p className="mt-2 text-sm text-slate-400">{String(row.description || "No description imported.")}</p></article>)}</div></State></>;
 }
 
 function Cases() {
