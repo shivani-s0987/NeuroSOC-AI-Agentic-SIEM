@@ -17,6 +17,7 @@ from app.routers.events import router as events_router
 from app.routers.reports import router as reports_router
 from app.routers.search import router as search_router
 from app.routers.settings import router as settings_router
+from app.routers.realtime import router as realtime_router
 
 app = FastAPI(title="NeuroSOC", version="0.1.0", docs_url="/docs", openapi_url="/openapi.json")
 configure_logging(settings.log_level)
@@ -54,10 +55,11 @@ app.include_router(analytics_router)
 app.include_router(settings_router)
 app.include_router(assistant_router)
 app.include_router(admin_router)
+app.include_router(realtime_router)
 
 for router in (
     auth_router, events_router, alerts_router, detections_router, search_router,
-    cases_router, reports_router, analytics_router, settings_router, assistant_router, admin_router,
+    cases_router, reports_router, analytics_router, settings_router, assistant_router, admin_router, realtime_router,
 ):
     app.include_router(router, prefix="/api/v1")
 

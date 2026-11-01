@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     rate_limit: int = Field(default=60, ge=1)
     cors_origins: str = "http://localhost:5173"
     log_level: str = "INFO"
+    redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = ""
+    celery_result_backend: str = ""
+    worker_max_attempts: int = Field(default=5, ge=1, le=20)
+    worker_poll_seconds: int = Field(default=2, ge=1, le=60)
+    realtime_max_connections: int = Field(default=1000, ge=1, le=10000)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 

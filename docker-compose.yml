@@ -1,4 +1,14 @@
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/var/lib/redis/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   postgres:
     image: postgres:16-alpine
     environment:
@@ -21,8 +31,27 @@ services:
       JWT_SECRET: ${JWT_SECRET:-replace-with-a-random-secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-replace-with-another-random-secret}
       PYTHONUNBUFFERED: "1"
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  worker:
+    build: .
+    command: ["celery", "-A", "app.worker", "--app-dir", "backend", "worker", "--loglevel=INFO"]
+    environment:
+      DATABASE_URL: ******postgres:5432/neurosoc
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
   frontend:
     build:
@@ -34,3 +63,4 @@ services:
       - backend
 volumes:
   postgres-data:
+  redis-data:
