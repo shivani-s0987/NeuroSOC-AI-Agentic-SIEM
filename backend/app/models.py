@@ -163,10 +163,41 @@ class ThreatIntel(Base):
     __table_args__ = {"extend_existing": True}
     id = Column(Integer, primary_key=True, index=True)
     indicator = Column(String(255), nullable=False, index=True)
+    normalized_value = Column(String(255), nullable=False, unique=True, index=True)
     intel_type = Column(String(80), default="ip")
     severity = Column(String(80), default="medium")
     details = Column(Text, nullable=True)
+    confidence = Column(Integer, default=0, nullable=False)
+    description = Column(Text, nullable=True)
+    tags = Column(JSON, default=list)
+    source = Column(String(120), default="manual")
+    original_value = Column(String(255), nullable=True)
+    first_seen = Column(DateTime, nullable=True)
+    last_seen = Column(DateTime, nullable=True)
+    valid_from = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    active = Column(Integer, default=1, nullable=False, index=True)
+    external_reference = Column(String(500), nullable=True)
+    provenance = Column(JSON, default=dict)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class IOCMatch(Base):
+    __tablename__ = "ioc_matches"
+    __table_args__ = (UniqueConstraint("event_id", "indicator_id", "matched_field", name="uq_ioc_event_match"), {"extend_existing": True})
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    indicator_id = Column(Integer, ForeignKey("threat_intel.id", ondelete="CASCADE"), nullable=False, index=True)
+    alert_id = Column(Integer, ForeignKey("alerts.id", ondelete="SET NULL"), nullable=True, index=True)
+    match_type = Column(String(80), nullable=False)
+    matched_field = Column(String(120), nullable=False)
+    matched_value = Column(String(255), nullable=False)
+    confidence = Column(Integer, nullable=False)
+    severity = Column(String(80), nullable=False)
+    provenance = Column(JSON, default=dict)
+    matched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
 class MITRETechnique(Base):
@@ -176,6 +207,15 @@ class MITRETechnique(Base):
     technique_id = Column(String(80), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
+    platforms = Column(JSON, default=list)
+    data_sources = Column(JSON, default=list)
+    detection = Column(Text, nullable=True)
+    tactics = Column(JSON, default=list)
+    parent_technique_id = Column(String(80), nullable=True, index=True)
+    external_url = Column(String(500), nullable=True)
+    revoked = Column(Integer, default=0, nullable=False)
+    deprecated = Column(Integer, default=0, nullable=False)
+    stix_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 

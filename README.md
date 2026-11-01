@@ -17,6 +17,10 @@
 
 **Analyze • Detect • Investigate • Correlate • Respond**
 
+## Threat intelligence and MITRE ATT&CK
+
+NeuroSOC includes normalized IOC management, provenance-preserving lifecycle state, JSON/CSV imports, event-to-IOC matching, URLhaus provider lookups, and an imported MITRE ATT&CK technique workspace. See [Threat intelligence documentation](docs/threat-intel/THREAT_INTELLIGENCE.md).
+
 </div>
 
 ---
