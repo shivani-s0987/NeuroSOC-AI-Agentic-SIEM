@@ -1,9 +1,11 @@
 import { api } from "./api";
 
-let accessToken: string | null = null;
+let accessToken: string | null = localStorage.getItem("neurosoc_access_token");
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  if (token) localStorage.setItem("neurosoc_access_token", token);
+  else localStorage.removeItem("neurosoc_access_token");
 }
 
 export function getAccessToken() {
@@ -11,9 +13,7 @@ export function getAccessToken() {
 }
 
 api.interceptors.request.use((config) => {
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
-  }
+  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
   return config;
 });
 

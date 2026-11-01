@@ -5,6 +5,15 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+export interface Paginated<T> {
+  items: T[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total: number;
+  };
+}
+
 export interface Summary {
   events: number;
   alerts: number;
