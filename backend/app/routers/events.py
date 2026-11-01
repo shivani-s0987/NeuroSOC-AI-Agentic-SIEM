@@ -7,15 +7,17 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Event
-from app.schemas import EventCreate, EventOut, Paginated
+from app.schemas import EventBatchCreate, EventCreate, EventIngestResult, EventOut, Paginated
 from app.core.pagination import apply_sort, paginated, pagination_params
 from app.core.permissions import Permission
 from app.security import require_permission
 from app.services.ingest_service import ingest_file_report
+from app.services.realtime_service import enqueue_celery_event, publish_notification, queue_event
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -60,13 +62,82 @@ def list_events(
 
 @router.post("", response_model=EventOut)
 def create_event(payload: EventCreate, db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_WRITE))) -> Event:
-    data = payload.model_dump(exclude={"metadata"})
+    data = payload.model_dump(exclude={"metadata", "idempotency_key", "external_id"})
     data["payload_metadata"] = payload.metadata or {}
+    data["idempotency_key"] = payload.idempotency_key
+    data["external_id"] = payload.external_id
     event = Event(**data)
     db.add(event)
-    db.commit()
+    try:
+        db.flush()
+        queue_event(db, event)
+        publish_notification(db, "event.created", "event", event.id, {
+            "severity": event.severity,
+            "source": event.source,
+        })
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An event with this external or idempotency identifier already exists")
     db.refresh(event)
+    enqueue_celery_event(event.id)
     return event
+
+
+@router.post("/ingest", response_model=EventIngestResult)
+def ingest_event(payload: EventCreate, db: Session = Depends(get_db), actor=Depends(require_permission(Permission.EVENTS_WRITE))) -> EventIngestResult:
+    if payload.idempotency_key:
+        existing = db.query(Event).filter(Event.idempotency_key == payload.idempotency_key).first()
+        if existing:
+            return EventIngestResult(accepted=True, duplicate=True, id=existing.id)
+    event_data = payload.model_dump(exclude={"metadata", "idempotency_key", "external_id"})
+    event_data.update(payload_metadata=payload.metadata or {}, idempotency_key=payload.idempotency_key,
+                      external_id=payload.external_id)
+    event = Event(**event_data)
+    db.add(event)
+    try:
+        db.flush()
+        queue_event(db, event)
+        publish_notification(db, "event.created", "event", event.id, {"severity": event.severity})
+        db.commit()
+        db.refresh(event)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Duplicate event identifier") from None
+    enqueue_celery_event(event.id)
+    return EventIngestResult(accepted=True, duplicate=False, id=event.id)
+
+
+@router.post("/ingest/batch")
+def ingest_batch(payload: EventBatchCreate, db: Session = Depends(get_db), actor=Depends(require_permission(Permission.EVENTS_WRITE))) -> dict[str, Any]:
+    results: list[EventIngestResult] = []
+    for index, item in enumerate(payload.events):
+        try:
+            if item.idempotency_key:
+                existing = db.query(Event).filter(Event.idempotency_key == item.idempotency_key).first()
+                if existing:
+                    results.append(EventIngestResult(accepted=True, duplicate=True, id=existing.id, index=index))
+                    continue
+            result = ingest_event(item, db=db, actor=actor)
+            result.index = index
+            results.append(result)
+        except HTTPException as exc:
+            results.append(EventIngestResult(accepted=False, index=index, errors=[str(exc.detail)]))
+    return {"accepted": sum(r.accepted for r in results), "rejected": sum(not r.accepted for r in results), "results": results}
+
+
+@router.get("/processing-status/{event_id}")
+def processing_status(event_id: int, db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.EVENTS_READ))) -> dict[str, Any]:
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {
+        "event_id": event.id,
+        "status": event.processing_status,
+        "attempts": event.processing_attempts,
+        "processed_at": event.processed_at,
+        "error": event.last_processing_error if event.processing_status == "failed" else None,
+    }
 
 
 @router.post("/import")

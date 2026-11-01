@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -34,6 +34,45 @@ class Event(Base):
     raw = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     payload_metadata = Column(JSON, default=dict)
+    external_id = Column(String(255), nullable=True, unique=True, index=True)
+    idempotency_key = Column(String(255), nullable=True, unique=True, index=True)
+    ingestion_status = Column(String(50), default="accepted", nullable=False)
+    processing_status = Column(String(50), default="pending", nullable=False)
+    processed_at = Column(DateTime, nullable=True)
+    processing_attempts = Column(Integer, default=0, nullable=False)
+    last_processing_error = Column(Text, nullable=True)
+
+
+class ProcessingJob(Base):
+    __tablename__ = "processing_jobs"
+    __table_args__ = {"extend_existing": True}
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    status = Column(String(50), default="pending", nullable=False, index=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    max_attempts = Column(Integer, default=5, nullable=False)
+    next_attempt_at = Column(DateTime, nullable=True, index=True)
+    claimed_at = Column(DateTime, nullable=True)
+    claimed_by = Column(String(255), nullable=True)
+    terminal_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime, nullable=True)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint("notification_id", name="uq_notifications_notification_id"),
+        {"extend_existing": True},
+    )
+    id = Column(Integer, primary_key=True, index=True)
+    notification_id = Column(String(255), unique=True, nullable=False, index=True)
+    event_type = Column(String(120), nullable=False, index=True)
+    schema_version = Column(Integer, default=1, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    resource_type = Column(String(80), nullable=False)
+    resource_id = Column(String(255), nullable=False, index=True)
+    data = Column(JSON, default=dict)
 
 
 class Alert(Base):

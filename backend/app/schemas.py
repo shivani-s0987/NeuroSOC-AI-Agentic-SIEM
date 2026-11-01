@@ -48,6 +48,8 @@ class ResetPasswordRequest(PasswordPolicy):
 
 
 class EventCreate(BaseModel):
+    external_id: Optional[str] = Field(default=None, max_length=255)
+    idempotency_key: Optional[str] = Field(default=None, max_length=255)
     source: str = Field(default="unknown", min_length=1, max_length=120)
     event_type: str = Field(default="generic", min_length=1, max_length=120)
     severity: str = Field(default="info", pattern="^(info|low|medium|high|critical)$")
@@ -94,6 +96,18 @@ class EventOut(BaseModel):
         default_factory=dict,
         serialization_alias="metadata",
     )
+
+
+class EventBatchCreate(BaseModel):
+    events: List[EventCreate] = Field(min_length=1, max_length=500)
+
+
+class EventIngestResult(BaseModel):
+    accepted: bool
+    duplicate: bool = False
+    id: Optional[int] = None
+    index: Optional[int] = None
+    errors: Optional[list[str]] = None
 
 
 T = TypeVar("T")

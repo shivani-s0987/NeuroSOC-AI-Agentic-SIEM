@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.detection_engine import correlate, load_yaml, parse_duration
 from app.models import Alert, Detection, Event, Rule
+from app.services.realtime_service import publish_notification
 
 RULE_DIRECTORY = Path(__file__).resolve().parent.parent / "detection_rules"
 
@@ -54,11 +55,17 @@ def run_detections(db: Session, as_of: datetime | None = None) -> list[Detection
                                       first_observed_at=match.first_observed, last_observed_at=match.last_observed)
                 alert = db.query(Alert).filter(Alert.fingerprint == match.fingerprint).first()
                 if alert is None:
-                    db.add(Alert(title=rule.name, severity=rule.severity, source="detection",
+                    alert = Alert(title=rule.name, severity=rule.severity, source="detection",
                                  summary=f"{rule.description} Recommended action: {rule.response.recommended_action}",
                                  event_ids=list(match.event_ids), first_observed_at=match.first_observed,
                                  last_observed_at=match.last_observed, fingerprint=match.fingerprint,
-                                 status="open", alert_metadata={"grouping": match.context, "mitre": rule.mitre.model_dump()}))
+                                 status="open", alert_metadata={"grouping": match.context, "mitre": rule.mitre.model_dump()})
+                    db.add(alert)
+                    db.flush()
+                    publish_notification(db, "alert.created", "alert", alert.id, {
+                        "severity": alert.severity,
+                        "status": alert.status,
+                    })
                 db.add(detection)
                 detections.append(detection)
         except Exception as exc:
