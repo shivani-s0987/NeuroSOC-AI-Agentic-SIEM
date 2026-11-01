@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 import signal
 import time
-from datetime import timedelta
-from uuid import uuid4
 
 try:
     from celery import Celery
@@ -22,14 +20,17 @@ logger = logging.getLogger("neurosoc.worker")
 _closing = False
 
 if Celery is not None and settings.celery_broker_url:
-    celery = Celery("neurosoc", broker=settings.celery_broker_url, backend=settings.celery_result_backend or None)
+    celery = Celery(
+        "neurosoc",
+        broker=settings.celery_broker_url,
+        backend=settings.celery_result_backend or None,
+    )
 else:
     celery = None
 
 
 def process_event(event_id: int) -> dict:
     db = SessionLocal()
-    owner = uuid4().hex
     try:
         event = db.get(Event, event_id)
         if event is None:
@@ -46,10 +47,16 @@ def process_event(event_id: int) -> dict:
         event.processing_status = "processed"
         event.processed_at = utcnow()
         event.last_processing_error = None
-        publish_notification(db, "event.processed", "event", event.id, {
-            "severity": event.severity,
-            "source": event.source,
-        })
+        publish_notification(
+            db,
+            "event.processed",
+            "event",
+            event.id,
+            {
+                "severity": event.severity,
+                "source": event.source,
+            },
+        )
         db.commit()
         return {"event_id": event_id, "status": "processed"}
     except Exception as exc:
@@ -88,7 +95,9 @@ def run_worker() -> None:
     while not _closing:
         db = SessionLocal()
         try:
-            event = db.query(Event).filter(Event.processing_status.in_(["pending", "retrying"])).first()
+            event = (
+                db.query(Event).filter(Event.processing_status.in_(["pending", "retrying"])).first()
+            )
             if event is None:
                 time.sleep(settings.worker_poll_seconds)
                 continue

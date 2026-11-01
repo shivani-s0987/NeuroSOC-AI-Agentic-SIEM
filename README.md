@@ -42,14 +42,14 @@ Designed for **defensive security, threat hunting, security research, and SOC tr
 - Threshold-based failed-login, SSH brute-force, and repeated denied-access detections
 - Rule and detection deduplication
 - API-backed React overview, event, alert, detection, and case views
-- Functional SQLite CLI doctor/backup/restore commands
+- SQLite/PostgreSQL CLI backup and confirmed restore workflows
 - Docker Compose for frontend, API, and PostgreSQL
 
 ## Current limitations
 
 - The remaining frontend menu routes are shells until their backend contracts are completed.
 - Alembic migrations exist for the current schema, but production rollout and multi-version migration history require operational review.
-- Redis, WebSockets, playbook automation, and autonomous response are not implemented.
+- Redis/Celery, WebSockets, playbooks, and autonomous response may require external platform operations.
 - The AI endpoint is a provider boundary with deterministic fallback, not an autonomous provider guarantee.
 - Real-time ingestion and a complete browser login flow require additional integration.
 
@@ -119,6 +119,22 @@ npm run dev
 ```bash
 python -m app.cli --help
 ```
+
+### Production-like deployment
+
+Create a separate PostgreSQL password, JWT secret, refresh secret, and explicit frontend origin. Never reuse local `.env` values.
+
+```bash
+export POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+export JWT_SECRET="$(openssl rand -hex 32)"
+export JWT_REFRESH_SECRET="$(openssl rand -hex 32)"
+export CORS_ORIGINS="https://soc.example.com"
+docker compose up -d --build
+curl -fsS http://localhost:8000/health/live
+curl -fsS http://localhost:8000/health/ready
+```
+
+Production containers require PostgreSQL; SQLite is only supported in development and isolated automated testing. See [production configuration](docs/production/ENVIRONMENT_CONFIGURATION.md), [deployment](docs/production/DEPLOYMENT_RUNBOOK.md), [backup and restore](docs/production/BACKUP_AND_RESTORE.md), and [release operations](docs/production/RELEASE_PROCESS.md).
 
 ---
 

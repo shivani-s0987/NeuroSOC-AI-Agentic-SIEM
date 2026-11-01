@@ -1,50 +1,76 @@
+name: neurosoc
+
 services:
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/var/lib/redis/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: neurosoc
-      POSTGRES_USER: neurosoc
-      POSTGRES_PASSWORD: neurosoc
+      POSTGRES_DB: ${POSTGRES_DB:-neurosoc}
+      POSTGRES_USER: ${POSTGRES_USER:-neurosoc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U neurosoc -d neurosoc"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-neurosoc} -d ${POSTGRES_DB:-neurosoc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-neurosoc}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-neurosoc}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must be set}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-localhost,127.0.0.1}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - uploads:/app/uploads
+      - backups:/app/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"]
+      interval: 15s
       timeout: 5s
       retries: 5
-  backend:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql+psycopg://neurosoc:neurosoc@postgres:5432/neurosoc
-      JWT_SECRET: ${JWT_SECRET:-replace-with-a-random-secret}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-replace-with-another-random-secret}
-      PYTHONUNBUFFERED: "1"
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      start_period: 30s
+
   worker:
-    build: .
-    command: ["celery", "-A", "app.worker", "--app-dir", "backend", "worker", "--loglevel=INFO"]
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
     environment:
-      DATABASE_URL: ******postgres:5432/neurosoc
-      REDIS_URL: redis://redis:6379/0
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-neurosoc}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-neurosoc}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       PYTHONUNBUFFERED: "1"
@@ -53,14 +79,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
-      - "5173:80"
+      - "${FRONTEND_PORT:-8080}:8080"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   redis-data:
+  uploads:
+  backups:

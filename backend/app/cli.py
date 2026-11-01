@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import shutil
 import sqlite3
+import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import typer
@@ -63,26 +68,109 @@ def doctor() -> None:
 
 
 @app.command()
-def backup(output: str = "neurosoc-backup.db") -> None:
+def backup(output: str | None = None) -> None:
     from app.config import settings
-    if not settings.database_url.startswith("sqlite"):
-        raise typer.BadParameter("CLI backup currently supports SQLite; use pg_dump for PostgreSQL")
-    source = settings.database_url.removeprefix("sqlite:///")
-    source_path = Path(source)
-    if not source_path.exists():
-        raise typer.BadParameter(f"Database does not exist: {source_path}")
-    shutil.copy2(source_path, output)
-    typer.echo(f"Backup created: {output}")
+
+    backup_dir = settings.backup_dir
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    destination = (
+        Path(output)
+        if output
+        else backup_dir
+        / (
+            f"neurosoc-{timestamp}.sqlite3"
+            if settings.database_url.startswith("sqlite")
+            else f"neurosoc-{timestamp}.dump"
+        )
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if settings.database_url.startswith("sqlite"):
+        source = Path(settings.database_url.removeprefix("sqlite:///"))
+        if not source.is_file():
+            raise typer.BadParameter(f"Database does not exist: {source}")
+        with sqlite3.connect(source) as source_db, sqlite3.connect(destination) as backup_db:
+            source_db.backup(backup_db)
+    else:
+        if shutil.which("pg_dump") is None:
+            raise typer.BadParameter("pg_dump is required for PostgreSQL backups")
+        result = subprocess.run(
+            [
+                "pg_dump",
+                "--format=custom",
+                "--no-password",
+                "--file",
+                str(destination),
+                settings.database_url,
+            ],
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            destination.unlink(missing_ok=True)
+            raise typer.BadParameter(f"pg_dump failed: {result.stderr.strip()}")
+    digest = hashlib.sha256(destination.read_bytes()).hexdigest()
+    metadata = {
+        "database_url_scheme": settings.database_url.split(":", 1)[0],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "sha256": digest,
+        "bytes": destination.stat().st_size,
+    }
+    destination.with_suffix(destination.suffix + ".json").write_text(json.dumps(metadata, indent=2))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.backup_retention_days)
+    for candidate in backup_dir.iterdir():
+        if (
+            candidate.is_file()
+            and datetime.fromtimestamp(candidate.stat().st_mtime, timezone.utc) < cutoff
+        ):
+            candidate.unlink(missing_ok=True)
+    typer.echo(f"Backup created: {destination}")
 
 
 @app.command()
-def restore(source: str) -> None:
+def restore(
+    source: str,
+    confirm: bool = typer.Option(False),
+) -> None:
+    if not confirm:
+        raise typer.BadParameter(
+            "Pass --confirm to restore; use an isolated database for validation"
+        )
     from app.config import settings
-    if not settings.database_url.startswith("sqlite"):
-        raise typer.BadParameter("CLI restore currently supports SQLite; use pg_restore for PostgreSQL")
+
     source_path = Path(source)
     if not source_path.is_file():
         raise typer.BadParameter(f"Backup does not exist: {source_path}")
+    metadata_path = source_path.with_suffix(source_path.suffix + ".json")
+    if metadata_path.is_file():
+        metadata = json.loads(metadata_path.read_text())
+        if hashlib.sha256(source_path.read_bytes()).hexdigest() != metadata.get("sha256"):
+            raise typer.BadParameter("Backup integrity check failed: SHA-256 mismatch")
+    if not settings.database_url.startswith("sqlite"):
+        if shutil.which("pg_restore") is None:
+            raise typer.BadParameter("pg_restore is required for PostgreSQL restores")
+        result = subprocess.run(
+            [
+                "pg_restore",
+                "--no-password",
+                "--clean",
+                "--if-exists",
+                "--exit-on-error",
+                "--dbname",
+                settings.database_url,
+                str(source_path),
+            ],
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise typer.BadParameter(f"pg_restore failed: {result.stderr.strip()}")
+        typer.echo(f"Restored: {source_path}")
+        return
     destination = Path(settings.database_url.removeprefix("sqlite:///"))
     with sqlite3.connect(source_path) as backup, sqlite3.connect(destination) as database:
         backup.backup(database)

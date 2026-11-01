@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import datetime
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from app.core.permissions import Permission, has_permission
 from app.database import get_db
-from app.models import Event, Notification, ProcessingJob, User
+from app.models import Notification, ProcessingJob, User
 from app.security import decode_token
 from app.security import require_permission
 from app.services.realtime_service import utcnow
@@ -75,7 +74,9 @@ async def realtime_websocket(websocket: WebSocket, db: Session = Depends(get_db)
             await websocket.close(code=4401, reason="Authentication required")
             return
         payload = decode_token(token)
-        user = db.query(User).filter(User.username == payload.get("sub"), User.disabled == 0).first()
+        user = (
+            db.query(User).filter(User.username == payload.get("sub"), User.disabled == 0).first()
+        )
         if user is None or not has_permission(str(user.role), Permission.EVENTS_READ):
             await websocket.close(code=4403, reason="Insufficient permissions")
             return
@@ -84,7 +85,9 @@ async def realtime_websocket(websocket: WebSocket, db: Session = Depends(get_db)
         while True:
             message = await websocket.receive_json()
             if not isinstance(message, dict):
-                await websocket.send_json({"type": "error", "message": "Message must be a JSON object"})
+                await websocket.send_json(
+                    {"type": "error", "message": "Message must be a JSON object"}
+                )
                 continue
             action = message.get("type")
             if action == "ping":
@@ -101,8 +104,17 @@ async def realtime_websocket(websocket: WebSocket, db: Session = Depends(get_db)
 
 
 @router.get("/health")
-def realtime_health(db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.SETTINGS_MANAGE))) -> dict:
+def realtime_health(
+    db: Session = Depends(get_db), _actor=Depends(require_permission(Permission.SETTINGS_MANAGE))
+) -> dict:
     active = sum(len(sockets) for sockets in manager.connections.values())
-    queue_depth = db.query(ProcessingJob).filter(ProcessingJob.status.in_(["pending", "retrying"])).count()
+    queue_depth = (
+        db.query(ProcessingJob).filter(ProcessingJob.status.in_(["pending", "retrying"])).count()
+    )
     failed = db.query(ProcessingJob).filter(ProcessingJob.status == "failed").count()
-    return {"status": "ok", "active_connections": active, "queue_depth": queue_depth, "failed_jobs": failed}
+    return {
+        "status": "ok",
+        "active_connections": active,
+        "queue_depth": queue_depth,
+        "failed_jobs": failed,
+    }
